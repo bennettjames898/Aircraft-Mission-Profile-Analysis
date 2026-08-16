@@ -32,8 +32,6 @@ def Example_Mission_Scenario():
         name                        = "Generic Narrowbody Twin",
         wing_area_m2                = 122.6,
         operating_empty_weight_kg   = 42000,
-        # max_fuel_weight_kg          =20000,
-        # max_payload_weight_kg       =20000,
         aero_model=SimpleDragPolar(
             cd0                 = 0.020, 
             aspect_ratio        = 9.5, 
@@ -94,8 +92,8 @@ def Example_Mission_Scenario():
 
     plt.tight_layout()
     output_path = os.path.join(os.path.dirname(__file__), "cruise_mission_output.png")
-    # plt.savefig(output_path, dpi=150)
-    # print(f"\nPlot saved to: {output_path}")
+    plt.savefig(output_path, dpi=150)
+    print(f"\nPlot saved to: {output_path}")
 
 
 if __name__ == "__main__":

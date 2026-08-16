@@ -27,14 +27,15 @@ against the closed-form Breguet range equation as a unit test
 
 ## Architecture
 ```
-atmosphere.py       - ISA atmosphere model (temp, pressure, density, speed of sound)
 aero_model.py       - Aero interface + simple parabolic drag polar implementation
-propulsion_model.py - Propulsion interface + simple constant-TSFC turbofan implementation
 aircraft_build.py 	- Aircraft class: wraps geometry, weights, aero + propulsion models
-segments.py         - MissionSegment base class, FixedCruiseSegment (RK4), LoiterSegment (RK4)
+atmosphere.py       - ISA atmosphere model (temp, pressure, density, speed of sound)
 mission.py          - Mission class: sequences segments, carries weight forward
+propulsion_model.py - Propulsion interface + simple constant-TSFC turbofan implementation
+segments.py         - MissionSegment base class, FixedCruiseSegment (RK4), LoiterSegment (RK4)
+unit_conversions.py - Collection of unit conversions used across the project
 examples/           - Runnable end-to-end mission scripts
-tests/              - Validation tests (Breguet convergence, physical sanity checks)
+tests/              - Validation tests (Breguet convergence)
 ```
 
 **Design principle:** `aero_model.py` and `propulsion_model.py` define
@@ -42,19 +43,16 @@ abstract interfaces (`AeroModelBase`, `PropulsionModelBase`). Everything
 downstream — `Aircraft`, `segments.py`, `Mission` — only calls those
 interface methods. This means a real aero deck (CFD-derived lookup
 table, DATCOM build-up) or a real engine cycle deck can be substituted
-by writing one new class, with zero changes to the mission-solving code.
+by writing one new class, with no changes necessary for the solver code.
 
 ## Physics implemented
-- **ISA atmosphere** (0–20 km), including an ISA+ΔT offset option
+- **ISA atmosphere** (0–20 km), including an ISA+ΔT offset option.
 - **Steady, level trim**: L = W, T = D solved at each point via the
-  required-CL relationship — no separate root-find needed in this
-  version, since level cruise is not over-constrained; the trim solver
-  becomes necessary once climb/descent flight-path angle is added (see
-  Roadmap)
+  required-CL relationship.
 - **Coupled weight/fuel-burn integration**: 4th-order Runge-Kutta on
   `dW/dx = -fuel_flow / V` for cruise, `dW/dt = -fuel_flow` for loiter
 - **Breguet range equation** as an independent closed-form check on the
-  numerical integrator
+  numerical integrator.
 
 ## Quick start
 ```bash
@@ -69,19 +67,16 @@ summary, and saves a weight-and-L/D-vs-distance plot.
 ## Validation
 `tests/test_breguet_sanity_check.py` checks that the numerically
 integrated cruise segment agrees with the closed-form Breguet range
-equation to within a tight tolerance. One result worth understanding
-rather than skimming past: **the residual error (~0.05%) does not shrink
-as integration step count increases.** That's expected, not a bug —
-RK4 is 4th-order accurate, so it's already converged to the true ODE
-solution by ~5 steps. The residual is coming from Breguet's own
-approximation (constant L/D evaluated at mean segment weight) rather
-than from the numerical integrator. The test docstring walks through
-how to tell which side of a comparison like this is actually the
-under-resolved one, since it's easy to misattribute a mismatch to the
-wrong component.
+equation to within a tight tolerance. **the residual error (~0.05%) 
+does not shrink  as integration step count increases.** RK4 is 4th-order 
+accurate, so it's already converged to the true ODE solution by ~5 steps. 
+The residual is coming from Breguet's own approximation (constant L/D 
+evaluated at mean segment weight) rather than from the numerical integrator. 
 
-## Known simplifications (by design, for this stage)
-- Constant TSFC (no altitude/Mach/throttle variation)
+## Simplifications & Assumptions
+- Constant TSFC propulsion model (no altitude/Mach/throttle variation)
+- Simple aero model is whole aircraft and assumes critical mach behavior 
+based on Anderson textbook methods.
 - No climb/descent segments yet (steady-level flight only)
 
 ## Roadmap
@@ -96,7 +91,7 @@ wrong component.
 - [ ] Functionality for Mission-level range sizing:
 		Iterate on a specified cruise leg to zero out fuel at the end of a mission 		
 - [ ] Create an implementation of `AeroModelBase` / `PropulsionModelBase`, to
-      read in table data from an outside source (DATCOM) to demonstrate a 
+      read in table data from an outside source (i.e. DATCOM) to demonstrate a 
 	  knowledge of iterpolated data handling
 
 ## Author's note

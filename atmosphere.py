@@ -18,7 +18,7 @@ T0      = 288.15        # K
 P0      = 101325        # Pa
 RHO0    = 1.225         # kg/m^3
 A0      = 340.294       # m/s, speed of sound at sea level
-G0      = 9.80665       # m/s^2
+G0      = convert.G0    # 9.80665 m/s^2
 R_AIR   = 287.05287     # J/(kg*K), specific gas constant for dry air
 GAMMA   = 1.4           # ratio of specific heats for air
 

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from aero_model import AeroModelBase
 from propulsion_model import PropulsionModelBase
 
-from atmosphere import isa_conditions, G0
+from atmosphere import isa_conditions
 import unit_conversions as convert
 
 @dataclass
@@ -17,14 +17,12 @@ class Aircraft:
     name: str
     wing_area_m2: float
     operating_empty_weight_kg: float
-    # max_fuel_weight_kg: float
-    # max_payload_weight_kg: float
     aero_model: AeroModelBase
     propulsion_model: PropulsionModelBase
 
     # Convert current mass (kg) to weight force (N).1
     def weight_n(self, current_weight_kg: float) -> float:
-        return current_weight_kg * G0
+        return current_weight_kg * convert.G0
 
     # CL required for level, unaccelerated flight (L = W)
     def required_cl(self, weight_kg: float, altitude_m: float, mach: float) -> float:
@@ -69,16 +67,14 @@ if __name__ == "__main__":
     from aero_model import SimpleDragPolar
     from propulsion_model import SimpleTurbofan
 
-    weight_kg = 70000.0
-    alt_m = convert.ft_to_m(25000)
-    mach = 0.78
+    weight_kg   = 70000.0
+    alt_m       = convert.ft_to_m(25000)
+    mach        = 0.78
     
     ac = Aircraft(
         name                        = "Generic Narrowbody",
         wing_area_m2                = 122.6,
         operating_empty_weight_kg   = 42000,
-        # max_fuel_weight_kg          = 20000,
-        # max_payload_weight_kg       = 20000,
         aero_model=SimpleDragPolar(cd0=0.020, aspect_ratio=9.5, oswald_efficiency=0.80),
         propulsion_model=SimpleTurbofan(sea_level_thrust_n=120000.0, tsfc_kg_per_n_per_s=1.75e-5, num_engines=2),
     )

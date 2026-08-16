@@ -37,8 +37,6 @@ def build_test_aircraft() -> Aircraft:
         name                        = "Test Aircraft",
         wing_area_m2                = 122.6,
         operating_empty_weight_kg   = 42000.0,
-        max_fuel_weight_kg          = 20000.0,
-        max_payload_weight_kg       = 20000.0,
         aero_model=SimpleDragPolar(
             cd0                 = 0.020, 
             aspect_ratio        = 9.5, 
@@ -52,13 +50,12 @@ def build_test_aircraft() -> Aircraft:
 
 # Closed-form Breguet range equation (constant V, TSFC, L/D)
 def breguet_range_m(tas_m_s, tsfc_kg_per_n_per_s, l_over_d, w_start_kg, w_end_kg):
-    g0 = 9.80665
-    return (tas_m_s / (tsfc_kg_per_n_per_s * g0)) * l_over_d * math.log(w_start_kg / w_end_kg)
-
+    convert.G0 # = 9.80665
+    return (tas_m_s / (tsfc_kg_per_n_per_s * convert.G0)) * l_over_d * math.log(w_start_kg / w_end_kg)
 
 def run_case(num_steps: int):
     """
-    Run CruiseSegment for a fixed range, then check that a Breguet
+    Run 'FixedCruiseSegment' for a fixed range, then check that a Breguet
     calculation using the (nearly constant) L/D at the midpoint weight
     predicts a very similar range for the same fuel burn.
     """
@@ -136,7 +133,7 @@ if __name__ == "__main__":
     print("Step count | Numerical range (nm) | Breguet range (nm) | Error (%)")
     for n in [5, 10, 25, 50, 100, 200]:
         num_m, breg_m, err = run_case(num_steps=n)
-        print(f"{n:>10} | {num_m/1852.0:>20.3f} | {breg_m/1852.0:>18.3f} | {err:>8.5f}")
+        print(f"{n:>10} | {convert.m_to_nm(num_m):>20.3f} | {convert.m_to_nm(breg_m):>18.3f} | {err:>8.5f}")
 
     print("\nRunning assertions...")
     test_breguet_agreement_coarse()

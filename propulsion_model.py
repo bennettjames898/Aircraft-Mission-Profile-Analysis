@@ -9,8 +9,6 @@ manufacturer chart, or (as here) a simple TSFC-based approximation.
 
 from abc import ABC, abstractmethod
 
-G0 = 9.80665  # m/s^2, for weight/thrust unit consistency
-
 
 class PropulsionModelBase(ABC):
     @abstractmethod
@@ -32,13 +30,12 @@ class PropulsionModelBase(ABC):
 class SimpleTurbofan(PropulsionModelBase):
     """
     Simplified turbofan model using:
-      - A altitude/Mach thrust lapse approximation (common conceptual-design form)
-      - Constant TSFC (thrust-specific fuel consumption)
+      - A altitude/Mach thrust lapse approximation (conceptual-design)
+      - Constant TSFC
 
     Thrust lapse: T_max(h, M) = T_sea_level * (rho/rho0)^m * f(M)
     where m ~ 0.7-1.0 for high-bypass turbofans, and f(M) is a mild
-    Mach correction. These are illustrative conceptual-design
-    approximations (consistent with Mattingly).
+    Mach correction. These are conceptual-design approximations (Mattingly).
     """
 
     def __init__(
@@ -84,7 +81,7 @@ if __name__ == "__main__":
 
     engine = SimpleTurbofan(
         sea_level_thrust_n=120000.0,  # ~27,000 lbf per engine, x2
-        tsfc_kg_per_n_per_s=1.75e-5,  # ~0.62 lb/lbf/hr, typical modern turbofan cruise TSFC
+        tsfc_kg_per_n_per_s=1.75e-5,  # ~0.62 lb/lbf/hr, typical turbofan cruise TSFC
         num_engines=2,
     )
 
