@@ -28,8 +28,8 @@ class SimpleDragPolar(AeroModelBase):
     """
     Simple parabolic drag polar: CD = CD0 + K * CL^2
 
-    This is a textbook model (Anderson) and is adequate for
-    early conceptual-level mission analysis. It intentionally ignores:
+    This is a textbook model (Anderson) for early conceptual-level mission 
+    analysis. It intentionally ignores:
       - Mach-dependent CD0 rise (wave drag) above a critical Mach
       - CL_max / stall limits
       - Compressibility effects on K
@@ -68,7 +68,6 @@ class SimpleDragPolar(AeroModelBase):
     def l_over_d(self, cl: float, mach: float) -> float:
         cd = self.get_cd(cl, mach)
         return cl / cd
-
 
 #------------------------------ DEBUGGING ------------------------------------- 
 if __name__ == "__main__":
