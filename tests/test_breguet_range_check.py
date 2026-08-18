@@ -13,10 +13,6 @@ is what a constant-altitude constant-Mach cruise does here). If the
 numerical integrator is implemented correctly, running it for a known
 fuel burn should recover a range that matches Breguet to a tight
 tolerance, and the match should improve as step count increases.
-
-This is the test to run first whenever the aero model, propulsion model,
-or integration scheme changes. If it fails, do not trust any other
-mission output until it passes again.
 """
 
 import math
@@ -90,43 +86,37 @@ def run_case(num_steps: int):
 def test_breguet_agreement_coarse():
     """Even a coarse integration (10 steps) should agree with Breguet within 0.5%."""
     _, _, error_pct = run_case(num_steps=10)
-    assert error_pct < 0.5, f"Breguet mismatch too large at coarse resolution: {error_pct:.4f}%"
+    assert error_pct < 0.5, print(f"Breguet mismatch too large at coarse resolution: {error_pct:.4f}%")
 
 
 def test_breguet_agreement_fine():
     """A finer integration (200 steps) should agree even more closely."""
     _, _, error_pct = run_case(num_steps=200)
-    assert error_pct < 0.1, f"Breguet mismatch too large at fine resolution: {error_pct:.4f}%"
+    assert error_pct < 0.1, print(f"Breguet mismatch too large at fine resolution: {error_pct:.4f}%")
 
 
 def test_convergence_improves_with_steps():
     """
-    Error should shrink, or as is the case here, stay flat. As step count 
-    increases, it should never grow. A flat residual is expected and
-    diagnostic, not a bug: RK4 is 4th-order accurate, so for a smooth
-    dW/dx it is already converged to the true ODE solution by ~5 steps.
-    The ~0.05% residual seen here is NOT integration error, it's the
-    error inherent in the Breguet comparison itself, which assumes a
-    single constant L/D (evaluated at mean segment weight) rather than
-    the true continuously-varying L/D the numerical integrator uses.
+    Error should shrink, or stay flat. As step count increases, error should 
+    not grow. A flat residual is expected.
     """
     _, _, error_coarse = run_case(num_steps=5)
     _, _, error_fine = run_case(num_steps=100)
-    assert error_fine <= error_coarse * 1.001, (  # allow tiny float noise
+    assert error_fine <= error_coarse * 1.001, print(  # allow tiny float noise
         f"Refining the integration should not increase error: "
         f"coarse={error_coarse:.4f}%, fine={error_fine:.4f}%"
     )
 
 
 def test_fuel_burn_is_positive_and_bounded():
-    """Basic physical sanity: cruise should burn fuel, and not more than it started with."""
+    """Basic check: cruise should burn fuel, and not more than it started with."""
     aircraft = build_test_aircraft()
     segment = FixedCruiseSegment(altitude_ft=35000, mach=0.78, range_nm=1000.0, num_steps=50)
     result = segment.run(aircraft, start_weight_kg=70000.0)
 
-    assert result.fuel_burned_kg > 0, "Cruise should burn a positive amount of fuel."
-    assert result.fuel_burned_kg < 70000.0, "Cruise should not burn more fuel than available weight."
-    assert result.end_weight_kg < result.start_weight_kg, "Weight must decrease during cruise."
+    assert result.fuel_burned_kg > 0, print("Cruise should burn a positive amount of fuel.")
+    assert result.fuel_burned_kg < 70000.0, print("Cruise should not burn more fuel than available weight.")
+    assert result.end_weight_kg < result.start_weight_kg, print("Weight must decrease during cruise.")
 
 
 if __name__ == "__main__":
@@ -135,9 +125,8 @@ if __name__ == "__main__":
         num_m, breg_m, err = run_case(num_steps=n)
         print(f"{n:>10} | {convert.m_to_nm(num_m):>20.3f} | {convert.m_to_nm(breg_m):>18.3f} | {err:>8.5f}")
 
-    print("\nRunning assertions...")
     test_breguet_agreement_coarse()
     test_breguet_agreement_fine()
     test_convergence_improves_with_steps()
     test_fuel_burn_is_positive_and_bounded()
-    print("All Breguet validation checks passed.")
+    
