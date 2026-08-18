@@ -23,7 +23,7 @@ algebraically except under simplifying assumptions (Breguet).
 `FixedCruiseSegment` solves the coupled problem by numerically
 integrating the weight-vs-distance ODE, and validates that integration
 against the closed-form Breguet range equation as a unit test
-(`tests/test_breguet_sanity_check.py`).
+(`tests/test_breguet_range_check.py`).
 
 ## Architecture
 ```
@@ -32,10 +32,12 @@ aircraft_build.py 	- Aircraft class: wraps geometry, weights, aero + propulsion 
 atmosphere.py       - ISA atmosphere model (temp, pressure, density, speed of sound)
 mission.py          - Mission class: sequences segments, carries weight forward
 propulsion_model.py - Propulsion interface + simple constant-TSFC turbofan implementation
-segments.py         - MissionSegment base class, FixedCruiseSegment (RK4), LoiterSegment (RK4)
+segments.py         - MissionSegment base class, FixedCruiseSegment (RK4), LoiterSegment (RK4), ClimbSegment/DescentSegment (brentq)
+solver.py           - Holds the brentq trim solution used in Climb/Descent
+speed_schedule.py   - Climb/descent speed schedules (constant Mach/TAS/CAS, CAS/Mach crossover)
 unit_conversions.py - Collection of unit conversions used across the project
 examples/           - Runnable end-to-end mission scripts
-tests/              - Validation tests (Breguet convergence)
+tests/              - Validation tests (Breguet convergence, climb/descent validation, speed schedule)
 ```
 
 **Design principle:** `aero_model.py` and `propulsion_model.py` define
@@ -49,6 +51,14 @@ by writing one new class, with no changes necessary for the solver code.
 - **ISA atmosphere** (0–20 km), including an ISA+ΔT offset option.
 - **Steady, level trim**: L = W, T = D solved at each point via the
   required-CL relationship.
+- **Climbing/descending trim**: L = W cos(γ), T − D = W sin(γ), where D
+  depends on CL which depends on γ. The implicit equation is solved 
+  numerically via `scipy.optimize.brentq` in `solver.py` at every point 
+  along the climb/descent profile.
+- **Climb acceleration correction**: Excess thrust required to accelerate 
+  in TAS is accounted for in climbs and descents by the factor
+  `ka = 1 + (V/g)(dV/dh)` in the force balance (`solver.py`), computed
+  from the schedule's `dtas_dh` at every point.
 - **Coupled weight/fuel-burn integration**: 4th-order Runge-Kutta on
   `dW/dx = -fuel_flow / V` for cruise, `dW/dt = -fuel_flow` for loiter
 - **Breguet range equation** as an independent closed-form check on the
@@ -64,23 +74,37 @@ The example runs a 1,500 nm cruise at 35,000 ft / M0.78 followed by a
 30-minute diversion loiter, prints a segment-by-segment fuel/time/weight
 summary, and saves a weight-and-L/D-vs-distance plot.
 
+Defining a schedule:
+```python
+from speed_schedule import CASMachSchedule, ConstantMachSchedule
+
+# 280 kt CAS to M0.78, then constant M0.78
+schedule = CASMachSchedule(cas_m_s=kt_to_ms(280), mach=0.78)
+
+# Or just pass a float for constant-Mach behavior --
+# ClimbSegment/DescentSegment accept either
+climb = ClimbSegment(start_altitude_ft=0, end_altitude_ft=35000, schedule=schedule)
+climb_simple = ClimbSegment(start_altitude_ft=0, end_altitude_ft=35000, schedule=0.78)
+```
+
 ## Validation
-`tests/test_breguet_sanity_check.py` checks that the numerically
+`tests/test_breguet_range_check.py` checks that the numerically
 integrated cruise segment agrees with the closed-form Breguet range
-equation to within a tight tolerance. **the residual error (~0.05%) 
-does not shrink  as integration step count increases.** RK4 is 4th-order 
-accurate, so it's already converged to the true ODE solution by ~5 steps. 
-The residual is coming from Breguet's own approximation (constant L/D 
-evaluated at mean segment weight) rather than from the numerical integrator. 
+equation to within a tight tolerance.
+`tests/test_speed_schedule.py` checks that the various behaviors required to 
+construct different speed schedules behaves as intended. 
+`tests/test_climb_descent.py` checks that the behaviors expected in climb and 
+descent are appearing niormal, the trimmed gamma solution is believable, 
+and that the climb acceleration correction 'ka' is properly accounted.
 
 ## Simplifications & Assumptions
 - Constant TSFC propulsion model (no altitude/Mach/throttle variation)
+- Idle thrust is modeled as a fixed fraction of max thrust at the same
+  altitude/Mach.
 - Simple aero model is whole aircraft and assumes critical mach behavior 
-based on Anderson textbook methods.
-- No climb/descent segments yet (steady-level flight only)
+  based on Anderson textbook methods.
 
 ## Roadmap
-- [ ] Mission segments for climb and descent
 - [ ] Separate class definition for mass properties (currently held in `aero_model.py`)
 - [ ] Imporved outputting & plot generation
 - [ ] Functionality for radius profiles (outbound and inbound segments)
