@@ -13,13 +13,16 @@ from atmosphere import isa_conditions
 import unit_conversions as convert
 
 @dataclass
-class Aircraft:
-    name: str
-    wing_area_m2: float
-    operating_empty_weight_kg: float
-    aero_model: AeroModelBase
-    propulsion_model: PropulsionModelBase
-
+class Aircraft:    
+    def __init__(self, name: str, wing_area_ft2: float, operating_empty_weight_lb: float, aero_model: AeroModelBase, propulsion_model: PropulsionModelBase):
+        self.name = name
+        self.wing_area_ft2 = wing_area_ft2
+        self.operating_empty_weight_lb = operating_empty_weight_lb
+        self.wing_area_m2 = wing_area_ft2 * convert.ft_to_m(1)**2
+        self.operating_empty_weight_kg = convert.lb_to_kg(operating_empty_weight_lb)
+        self.aero_model = aero_model
+        self.propulsion_model = propulsion_model
+        
     # Convert current mass (kg) to weight force (N).1
     def weight_n(self, current_weight_kg: float) -> float:
         return current_weight_kg * convert.G0
@@ -66,22 +69,24 @@ class Aircraft:
 if __name__ == "__main__":
     from aero_model import SimpleDragPolar
     from propulsion_model import SimpleTurbofan
-
-    weight_kg   = 70000.0
-    alt_m       = convert.ft_to_m(25000)
-    mach        = 0.78
-    
+   
     ac = Aircraft(
         name                        = "Generic Narrowbody",
-        wing_area_m2                = 122.6,
-        operating_empty_weight_kg   = 42000,
+        wing_area_ft2                = 1320,
+        operating_empty_weight_lb    = 80000,
         aero_model=SimpleDragPolar(cd0=0.020, aspect_ratio=9.5, oswald_efficiency=0.80),
-        propulsion_model=SimpleTurbofan(sea_level_thrust_n=120000.0, tsfc_kg_per_n_per_s=1.75e-5, num_engines=2),
+        propulsion_model=SimpleTurbofan(sea_level_thrust_n=120000, tsfc_kg_per_n_per_s=1.75e-5, num_engines=2),
     )
+    
+    total_weight_kg     = 100000
+    alt_m               = convert.ft_to_m(25000)
+    mach                = 0.78
 
     print(f"Aircraft: {ac.name}")
-    print(f"Weight: {weight_kg:.0f} kg, Alt: {convert.m_to_ft(alt_m):.0f} ft, Mach: {mach}")
-    print(f"Required CL:   {ac.required_cl(weight_kg, alt_m, mach):.4f}")
-    print(f"Drag:          {ac.drag_n(weight_kg, alt_m, mach):.0f} N")
-    print(f"L/D:           {ac.lift_to_drag(weight_kg, alt_m, mach):.2f}")
-    print(f"Fuel flow:     {ac.fuel_flow_kg_s(weight_kg, alt_m, mach)*3600:.1f} kg/hr")
+    print(f"Wing Area:     {ac.wing_area_m2:.0f} m2 | {ac.wing_area_ft2:.0f} ft2")
+    print(f"Empty Weight:  {ac.operating_empty_weight_kg:.0f} kg | {ac.operating_empty_weight_lb:.0f} lb")
+    print(f"Weight: {total_weight_kg:.0f} kg, Alt: {convert.m_to_ft(alt_m):.0f} ft, Mach: {mach}")
+    print(f"Required CL:   {ac.required_cl(total_weight_kg, alt_m, mach):.4f}")
+    print(f"Drag:          {ac.drag_n(total_weight_kg, alt_m, mach):.0f} N")
+    print(f"L/D:           {ac.lift_to_drag(total_weight_kg, alt_m, mach):.2f}")
+    print(f"Fuel flow:     {ac.fuel_flow_kg_s(total_weight_kg, alt_m, mach)*3600:.1f} kg/hr")

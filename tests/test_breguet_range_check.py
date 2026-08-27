@@ -31,8 +31,8 @@ from segments import FixedCruiseSegment
 def build_test_aircraft() -> Aircraft:
     return Aircraft(
         name                        = "Test Aircraft",
-        wing_area_m2                = 122.6,
-        operating_empty_weight_kg   = 42000.0,
+        wing_area_ft2               = 1320,
+        operating_empty_weight_lb   = 92500,
         aero_model=SimpleDragPolar(
             cd0                 = 0.020, 
             aspect_ratio        = 9.5, 
@@ -45,9 +45,9 @@ def build_test_aircraft() -> Aircraft:
     )
 
 # Closed-form Breguet range equation (constant V, TSFC, L/D)
-def breguet_range_m(tas_m_s, tsfc_kg_per_n_per_s, l_over_d, w_start_kg, w_end_kg):
+def breguet_range_nm(tas_m_s, tsfc_kg_per_n_per_s, l_over_d, w_start_kg, w_end_kg):
     convert.G0 # = 9.80665
-    return (tas_m_s / (tsfc_kg_per_n_per_s * convert.G0)) * l_over_d * math.log(w_start_kg / w_end_kg)
+    return convert.m_to_nm((tas_m_s / (tsfc_kg_per_n_per_s * convert.G0)) * l_over_d * math.log(w_start_kg / w_end_kg))
 
 def run_case(num_steps: int):
     """
@@ -66,21 +66,21 @@ def run_case(num_steps: int):
     # Build cruise segment and run
     segment = FixedCruiseSegment(altitude_ft=altitude_ft, mach=mach, range_nm=range_nm, num_steps=num_steps)
     result = segment.run(aircraft, start_weight_kg)
-    numerical_range_m = result.distance_m
+    numerical_range_nm = result.distance_nm
 
     # Evaluate Breguet at the mean weight
     mean_weight_kg  = 0.5 * (result.start_weight_kg + result.end_weight_kg)
     l_over_d_mid    = aircraft.lift_to_drag(mean_weight_kg, convert.ft_to_m(altitude_ft), mach)
     tas             = convert.mach_to_tas(mach, convert.ft_to_m(altitude_ft))
     tsfc            = aircraft.propulsion_model.tsfc
-    breguet_pred_range_m = breguet_range_m(
+    breguet_pred_range_nm = breguet_range_nm(
         tas, tsfc, l_over_d_mid, result.start_weight_kg, result.end_weight_kg
     )
 
     # Calc error
-    error_pct = 100.0 * abs(breguet_pred_range_m - numerical_range_m) / numerical_range_m
+    error_pct = 100.0 * abs(breguet_pred_range_nm - numerical_range_nm) / numerical_range_nm
 
-    return numerical_range_m, breguet_pred_range_m, error_pct
+    return numerical_range_nm, breguet_pred_range_nm, error_pct
 
 
 def test_breguet_agreement_coarse():
@@ -111,22 +111,21 @@ def test_convergence_improves_with_steps():
 def test_fuel_burn_is_positive_and_bounded():
     """Basic check: cruise should burn fuel, and not more than it started with."""
     aircraft = build_test_aircraft()
-    segment = FixedCruiseSegment(altitude_ft=35000, mach=0.78, range_nm=1000.0, num_steps=50)
-    result = segment.run(aircraft, start_weight_kg=70000.0)
+    segment = FixedCruiseSegment(altitude_ft=35000, mach=0.78, range_nm=1000, num_steps=50)
+    result = segment.run(aircraft, start_weight_kg=70000)
 
     assert result.fuel_burned_kg > 0, print("Cruise should burn a positive amount of fuel.")
     assert result.fuel_burned_kg < 70000.0, print("Cruise should not burn more fuel than available weight.")
     assert result.end_weight_kg < result.start_weight_kg, print("Weight must decrease during cruise.")
 
-
 if __name__ == "__main__":
+    print("Breguet Range Assessment - Method Comparison:")
     print("Step count | Numerical range (nm) | Breguet range (nm) | Error (%)")
     for n in [5, 10, 25, 50, 100, 200]:
-        num_m, breg_m, err = run_case(num_steps=n)
-        print(f"{n:>10} | {convert.m_to_nm(num_m):>20.3f} | {convert.m_to_nm(breg_m):>18.3f} | {err:>8.5f}")
+        num_nm, breg_nm, err = run_case(num_steps=n)
+        print(f"{n:>10} | {num_nm:>20.3f} | {breg_nm:>18.3f} | {err:>8.5f}")
 
     test_breguet_agreement_coarse()
     test_breguet_agreement_fine()
     test_convergence_improves_with_steps()
     test_fuel_burn_is_positive_and_bounded()
-    

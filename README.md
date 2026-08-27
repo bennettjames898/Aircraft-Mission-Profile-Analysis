@@ -2,17 +2,13 @@
 A solver to analyze the performance of a conceptual aircraft along a 
 user-defined mission profile. 
 
-This is a portfolio project, not a certified performance tool. Aero and
-propulsion models are simplified (parabolic drag polar, constant-TSFC
-turbofan) for the purpose of example. The goal of this project is to
-demonstrate my knowledge of performance analysis theory and numerical-methods 
-behind mission analysis.
-
 ## Why this project
-After spending several years in industry working as an aircraft performance engineer,
-I found it increasingly difficult to find a new position. I figured an example portfolio 
-of my background would help my job search and get me back into the field. I also hated
-the performance analysis tool I used at work, and never got funding to rewrite it.
+I transitioned into more general mod/sim roles after spending several years in 
+the aeronautics industry as an aircraft performance engineer. With this time 
+away from the field, I figured an example portfolio of my skillsets would help 
+in the job search and provide recruiters confidence in my abilities. I also
+hated the mission profile analysis tool I used at work, and never got funding 
+to rewrite it.
 
 ## Tool theory of operation
 Mission analysis is fundamentally an iterative problem: weight
@@ -97,6 +93,10 @@ construct different speed schedules behaves as intended.
 descent are appearing niormal, the trimmed gamma solution is believable, 
 and that the climb acceleration correction 'ka' is properly accounted.
 
+Individual file outputs are checked against a hand-computable or
+independently-derivable reference in the corresponding test or
+`__name__ == "__main__"` block of each `.py` file
+
 ## Simplifications & Assumptions
 - Constant TSFC propulsion model (no altitude/Mach/throttle variation)
 - Idle thrust is modeled as a fixed fraction of max thrust at the same
@@ -105,8 +105,9 @@ and that the climb acceleration correction 'ka' is properly accounted.
   based on Anderson textbook methods.
 
 ## Roadmap
-- [ ] Separate class definition for mass properties (currently held in `aero_model.py`)
-- [ ] Imporved outputting & plot generation
+- [ ] Separate class definition for mass properties (currently in `aero_model.py` 
+      or defined in an example run script)
+- [ ] Improved outputting & plot generation (currently ad hoc)
 - [ ] Functionality for radius profiles (outbound and inbound segments)
 - [ ] Functionality for Mission-level fuel sizing: 
 		iteration that guesses takeoff fuel weight and converges when 
@@ -115,11 +116,26 @@ and that the climb acceleration correction 'ka' is properly accounted.
 - [ ] Functionality for Mission-level range sizing:
 		Iterate on a specified cruise leg to zero out fuel at the end of a mission 		
 - [ ] Create an implementation of `AeroModelBase` / `PropulsionModelBase`, to
-      read in table data from an outside source (i.e. DATCOM) to demonstrate a 
-	  knowledge of iterpolated data handling
+      read in table data from an outside source (i.e. DATCOM) to demonstrate 
+	  knowledge of iterpolated data handling.
 
-## Author's note
-Built to demonstrate applied flight mechanics + numerical methods +
-software structure. Individual file outputs are checked against a hand-computable or
-independently-derivable reference in the corresponding test or
-`__name__ == "__main__"` block of each `.py` file
+## References
+- **ISA atmosphere model** — standard 1976 US Standard Atmosphere
+  relations (`atmosphere.py`).
+- **Compressible CAS↔Mach conversion** (`unit_conversions.py:cas_to_mach`,
+  `mach_to_cas`) — compressible pitot-static relation from FAA,
+  *Pilot's Handbook of Aeronautical Knowledge*
+- **Climb acceleration factor / "kinetic correction factor"**
+  (`ka` in `solver.py`) — derived from the flight path force
+  balance and the chain rule for dV/dt:
+  - Marchman, J.F., *Aerodynamics and Aircraft Performance*, 3rd ed.,
+    Virginia Tech (open textbook), Ch. 5:
+    https://eng.libretexts.org/Bookshelves/Aerospace_Engineering/Aerodynamics_and_Aircraft_Performance_3e_(Marchman)/05:_Altitude_Change-_Climb_and_Guide
+    
+## Disclaimer
+This is a portfolio project, not a certified performance analysis tool. The 
+goal of this project is to demonstrate my knowledge of performance analysis 
+theory and numerical methods behind mission analysis. While I have attempted to 
+ensure the outputs from this tool are calculated accurately, I give no warranty 
+to the tool's accuracy. Users should do their own due dilligence before any 
+commercial use.

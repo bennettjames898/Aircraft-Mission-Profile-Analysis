@@ -3,6 +3,19 @@ Trim solver for climbing and descending flight.
 
 Gamma is solved for numerically with scipy.optimize.brentq.
 Both solvers below return gamma in radians.
+
+References for the accelerated-climb correction (`ka`):
+  - Marchman, J.F., "Aerodynamics and Aircraft Performance," 3rd ed.,
+    Virginia Tech (open textbook), Ch. 5 "Altitude Change: Climb and
+    Glide" derives specific excess power with the acceleration term:
+    Ps = (Pav - Preq)/W = dh/dt + (V/g)(dV/dt).
+    https://eng.libretexts.org/Bookshelves/Aerospace_Engineering/Aerodynamics_and_Aircraft_Performance_3e_(Marchman)/05:_Altitude_Change-_Climb_and_Guide
+Starting from the x-stability axis force balance T - D - W sin(gamma) = (W/g)(dV/dt), 
+and using the chain rule dV/dt = (dV/dh)(dh/dt) = (dV/dh)(V sin gamma) for a 
+climb/descent where speed is prescribed as a function of altitude, gives
+T - D = W sin(gamma) * [1 + (V/g)(dV/dh)]
+
+[1 + (V/g)(dV/dh)] = 'ka`
 """
 
 import math

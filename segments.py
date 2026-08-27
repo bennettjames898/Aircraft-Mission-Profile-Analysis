@@ -19,7 +19,7 @@ class SegmentResult:
     start_weight_kg:    float
     end_weight_kg:      float
     fuel_burned_kg:     float
-    distance_m:         float
+    distance_nm:        float
     time_s:             float
     # Fine-grained trace for plotting: one entry per integration step
     history: List[dict] = field(default_factory=list)
@@ -92,7 +92,7 @@ class FixedCruiseSegment(MissionSegment):
             start_weight_kg = start_weight_kg,
             end_weight_kg   = weight_kg,
             fuel_burned_kg  = start_weight_kg - weight_kg,
-            distance_m      = distance_m,
+            distance_nm     = convert.m_to_nm(distance_m),
             time_s          = time_s,
             history         = history,
         )
@@ -104,7 +104,7 @@ class LoiterSegment(MissionSegment):
     """
     name = "loiter"
 
-    def __init__(self, altitude_ft: float, mach: float, duration_min: float, num_steps: int = 50):
+    def __init__(self, altitude_ft: float, mach: float, duration_min: float, num_steps: int = 100):
         self.altitude_m = convert.ft_to_m(altitude_ft)
         self.mach       = mach
         self.duration_s = duration_min * 60.0
@@ -137,7 +137,7 @@ class LoiterSegment(MissionSegment):
             start_weight_kg = start_weight_kg,
             end_weight_kg   = weight_kg,
             fuel_burned_kg  = start_weight_kg - weight_kg,
-            distance_m      = 0.0,
+            distance_nm     = 0.0,
             time_s=time_s,
             history=history,
         )
@@ -158,15 +158,8 @@ class CommonGammaSegment(MissionSegment):
     together with RK4.
     """
 
-    def __init__(
-        self,
-        start_altitude_ft:  float,
-        end_altitude_ft:    float,
-        schedule,
-        num_steps:          int     = 50,
-        gamma_min_deg:      float   = 0.05,
-        gamma_max_deg:      float   = 25,
-    ):
+    def __init__(self, start_altitude_ft: float, end_altitude_ft: float, schedule, 
+                 num_steps: int = 100, gamma_min_deg: float = 0.05, gamma_max_deg: float = 25):
         self.start_altitude_m = convert.ft_to_m(start_altitude_ft)
         self.end_altitude_m = convert.ft_to_m(end_altitude_ft)
         self.schedule = speed_schedule.as_schedule(schedule)
@@ -253,7 +246,7 @@ class CommonGammaSegment(MissionSegment):
             d_end = self._derivatives(aircraft, altitude_m, weight_kg)
             history.append({
                 "altitude_ft":          convert.m_to_ft(altitude_m),
-                "distance_nm":          convert.m_to_ft(distance_m),
+                "distance_nm":          convert.m_to_nm(distance_m),
                 "weight_kg":            weight_kg,
                 "time_min":             time_s / 60.0,
                 "mach":                 d_end["mach"],
@@ -268,7 +261,7 @@ class CommonGammaSegment(MissionSegment):
             start_weight_kg = start_weight_kg,
             end_weight_kg   = weight_kg,
             fuel_burned_kg  = start_weight_kg - weight_kg,
-            distance_m      = distance_m,
+            distance_nm     = convert.m_to_nm(distance_m),
             time_s          = time_s,
             history         = history,
         )

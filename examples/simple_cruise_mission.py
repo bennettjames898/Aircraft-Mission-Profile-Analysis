@@ -1,12 +1,6 @@
 """
-End-to-end example: a narrowbody-class aircraft flying a cruise segment
-followed by a holding-pattern loiter (e.g. a diversion reserve), using
-only the components built so far (aero, propulsion, aircraft, segments,
-mission). Climb/descent segments are a natural next addition -- this
-example only requires steady-level flight physics, which is what's
-implemented today.
-
-Run with:  python3 examples/simple_cruise_mission.py
+Cruise & Loiter example: a narrowbody-class aircraft flying a cruise segment
+followed by a loiter (time-based cruise).
 """
 
 import sys
@@ -22,6 +16,7 @@ from aero_model import SimpleDragPolar
 from propulsion_model import SimpleTurbofan
 from aircraft_build import Aircraft
 from segments import FixedCruiseSegment, LoiterSegment
+import unit_conversions as convert
 from mission import Mission
 
 ## Run a performance analysis
@@ -30,8 +25,8 @@ def Example_Mission_Scenario():
     ## Construct Aircraft Model (Aero & Prop data)
     aircraft = Aircraft(
         name                        = "Generic Narrowbody Twin",
-        wing_area_m2                = 122.6,
-        operating_empty_weight_kg   = 42000,
+        wing_area_ft2               = 1320,
+        operating_empty_weight_lb   = 92500,
         aero_model=SimpleDragPolar(
             cd0                 = 0.020, 
             aspect_ratio        = 9.5, 
@@ -43,46 +38,46 @@ def Example_Mission_Scenario():
         ),
     )
     
-    # Construct starting weight with fuel and payload
-    payload_kg      = 15000
-    fuel_kg         = 18000
-    start_weight_kg = aircraft.operating_empty_weight_kg + payload_kg + fuel_kg
+    # Fuel and Stores
+    payload_lb  = 33000
+    fuel_lb     = 40000
+    zero_fuel_weight_lb = aircraft.operating_empty_weight_lb + payload_lb
+    start_weight_lb = aircraft.operating_empty_weight_lb + payload_lb + fuel_lb
 
     ## Construct the mission profile by segments
     # (cruise at 35kft/M0.78 for 1,500nm, hold 30min at 10kft)
-    MissionProfile = [FixedCruiseSegment(altitude_ft=35000, mach=0.78, range_nm=1500.0, num_steps=100),
-    LoiterSegment(altitude_ft=10000, mach=0.35, duration_min=30.0, num_steps=10)]
+    MissionProfile = [FixedCruiseSegment(altitude_ft=35000, mach=0.78, range_nm=1500, num_steps=100),
+    LoiterSegment(altitude_ft=10000, mach=0.35, duration_min=30, num_steps=10)]
 
     ####### RUN mission #######
     mission = Mission(
         aircraft = aircraft,
         segments = MissionProfile
         )
-    result = mission.run(start_weight_kg)
+    result = mission.run(start_weight_lb)
     print(result.summary())
 
     # Sanity checks:
-    zero_fuel_weight_kg = aircraft.operating_empty_weight_kg + payload_kg
-    if result.end_weight_kg < zero_fuel_weight_kg:
+    if result.end_weight_lb < zero_fuel_weight_lb:
         print(
             f"\nWARNING: mission ends below zero-fuel weight "
-            f"({result.end_weight_kg:.0f} kg < {zero_fuel_weight_kg:.0f} kg)."
+            f"({result.end_weight_lb:.0f} lb < {zero_fuel_weight_lb:.0f} lb)."
         )
     else:
-        remaining_fuel_kg = result.end_weight_kg - zero_fuel_weight_kg
-        print(f"\nFuel remaining: {remaining_fuel_kg:.0f} kg")
+        remaining_fuel_lb = result.end_weight_lb - zero_fuel_weight_lb
+        print(f"\nFuel remaining: {remaining_fuel_lb:.0f} lb")
 
     # --- Plot: weight vs. cumulative distance for the cruise segment ---
-    cruise_result = result.segment_results[0]
-    distances_nm = [h["distance_nm"] for h in cruise_result.history]
-    weights_kg = [h["weight_kg"] for h in cruise_result.history]
-    l_over_d = [h["l_over_d"] for h in cruise_result.history]
+    cruise_result   = result.segment_results[0]
+    distances_nm    = [h["distance_nm"] for h in cruise_result.history]
+    weights_kg      = [convert.kg_to_lb(h["weight_kg"]) for h in cruise_result.history]
+    l_over_d        = [h["l_over_d"] for h in cruise_result.history]
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 7), sharex=True)
 
     ax1.plot(distances_nm, weights_kg, color="#1f4e79", linewidth=2)
-    ax1.set_ylabel("Aircraft Weight (kg)")
-    ax1.set_title(f"{aircraft.name} — Cruise Fuel Burn (35,000 ft, M0.78)")
+    ax1.set_ylabel("Aircraft Weight (lb)")
+    ax1.set_title(f"{aircraft.name} — Cruise Fuel Burn - simple_cruise_mission.py")
     ax1.grid(alpha=0.3)
 
     ax2.plot(distances_nm, l_over_d, color="#c0504d", linewidth=2)

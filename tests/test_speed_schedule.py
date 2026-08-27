@@ -22,8 +22,8 @@ from segments import ClimbSegment
 def build_test_aircraft() -> Aircraft:
     return Aircraft(
         name                        = "Test Aircraft",
-        wing_area_m2                = 122.6,
-        operating_empty_weight_kg   = 42000,
+        wing_area_ft2               = 1320,
+        operating_empty_weight_lb   = 92500,
         aero_model = SimpleDragPolar(
             cd0                 = 0.020, 
             aspect_ratio        = 9.5, 
@@ -111,8 +111,6 @@ def test_ka_above_one_during_cas_acceleration_below_crossover(KCAS, MACH, ALT_lo
     climb = ClimbSegment(start_altitude_ft=ALT_lo, end_altitude_ft=ALT_hi, schedule=schedule, num_steps=steps)
     result = climb.run(ac, start_weight_kg=start_weight)
 
-    # All points here are below the ~32,000 ft crossover, so should be in
-    # the constant-CAS (accelerating) regime.
     for pt in result.history:
         assert pt["ka"] > 1.0, print(f"Expected ka > 1.0 below crossover, got {pt['ka']:.4f} at {pt['altitude_ft']:.0f} ft")
 
@@ -130,11 +128,11 @@ if __name__ == "__main__":
     start_weight = 75000 # kg
     steps = 40
     
+    print("SpeedSchedule Function Tests:")
+    print("!!! Any other comment besides 'Running: ' means errors have occured !!!")
     test_cas_mach_roundtrip(KCAS_list, ALT_list),
     test_constant_tas_schedule_zero_acceleration(KTAS, ALT),
     test_cas_mach_schedule_continuity_at_crossover(KCAS, MACH),
     test_cas_mach_schedule_regimes(KCAS, MACH),
     test_ka_deviates_from_one_under_cas_schedule(KCAS, MACH, ALT_lo, ALT_hi, start_weight, steps),
     test_ka_above_one_during_cas_acceleration_below_crossover(KCAS, MACH, ALT_lo, ALT_hi, start_weight, steps),
-    
-    print("!!! Any other comment besides 'Running: ' means errors have occured !!!")

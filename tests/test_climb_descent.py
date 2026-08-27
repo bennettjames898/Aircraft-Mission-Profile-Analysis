@@ -2,15 +2,10 @@
 Validation tests for the climb/descent trim solver and the segments
 built on top of it.
 
-Unlike cruise (validated against Breguet's closed form), there isn't a
-simple closed-form reference for climb/descent performance once a real
-drag polar and thrust lapse are involved -- so these tests check the
-things that CAN be verified independently: that the solved trim angle
-actually zeros the force-balance residual, that basic physical trends
-hold (excess thrust and hence rate of climb shrinks with altitude,
-idle-thrust descent burns much less fuel than max-thrust climb), and
-that the solver fails loudly rather than silently when no physical
-trim exists (e.g., attempting to climb above the aircraft's ceiling).
+Unlike cruise (validated against Breguet), there isn't a simple closed-form 
+reference for climb/descent performance. Yhese tests check the things that can 
+be verified independently (solved trim angle zeroes forces, basic functionality 
+and proper climb failure reporting for low Ps.
 """
 
 import sys
@@ -33,8 +28,8 @@ from segments import ClimbSegment, DescentSegment
 def build_test_aircraft() -> Aircraft:
     return Aircraft(
         name                        = "Test Aircraft",
-        wing_area_m2                = 122.6,
-        operating_empty_weight_kg   = 42000,
+        wing_area_ft2               = 1320,
+        operating_empty_weight_lb   = 92500,
         aero_model=SimpleDragPolar(
             cd0                 = 0.020, 
             aspect_ratio        = 9.5, 
@@ -45,7 +40,6 @@ def build_test_aircraft() -> Aircraft:
             num_engines         = 2
         ),
     )
-
 
 # --- Solver-level tests ---
 def test_climb_gamma_residual(MACH, ALT, start_weight_kg):
@@ -141,11 +135,11 @@ if __name__ == "__main__":
     start_weight_kg = 75000 # kg
     steps = 40
     
+    print("Climb/Descent Function Tests")
+    print("!!! Any other comment besides 'Running: ' means errors have occured !!!")
     test_climb_gamma_residual(MACH, ALT, start_weight_kg)
     test_descent_gamma_residual(MACH, ALT, start_weight_kg)
     test_climb_above_ceiling()
     test_climb_segment_altitude_and_weight_monotonic()
     test_climb_rate_of_climb_decreases_with_altitude()
     test_descent_segment_altitude_and_weight_monotonic()
-      
-    print("!!! Any other comment besides 'Running: ' means errors have occured !!!")
