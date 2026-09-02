@@ -25,7 +25,7 @@ from aero_model import SimpleDragPolar
 from propulsion_model import SimpleTurbofan
 from aircraft_build import Aircraft
 import unit_conversions as convert
-from segments import FixedCruiseSegment
+from segments import ConstantAltCruiseSegment
 
 # Notional airplane
 def build_test_aircraft() -> Aircraft:
@@ -64,7 +64,7 @@ def run_case(num_steps: int):
     num_steps       = 100
 
     # Build cruise segment and run
-    segment = FixedCruiseSegment(altitude_ft=altitude_ft, mach=mach, range_nm=range_nm, num_steps=num_steps)
+    segment = ConstantAltCruiseSegment(altitude_ft=altitude_ft, mach=mach, range_nm=range_nm, num_steps=num_steps)
     result = segment.run(aircraft, start_weight_kg)
     numerical_range_nm = result.distance_nm
 
@@ -111,7 +111,7 @@ def test_convergence_improves_with_steps():
 def test_fuel_burn_is_positive_and_bounded():
     """Basic check: cruise should burn fuel, and not more than it started with."""
     aircraft = build_test_aircraft()
-    segment = FixedCruiseSegment(altitude_ft=35000, mach=0.78, range_nm=1000, num_steps=50)
+    segment = ConstantAltCruiseSegment(altitude_ft=35000, mach=0.78, range_nm=1000, num_steps=50)
     result = segment.run(aircraft, start_weight_kg=70000)
 
     assert result.fuel_burned_kg > 0, print("Cruise should burn a positive amount of fuel.")

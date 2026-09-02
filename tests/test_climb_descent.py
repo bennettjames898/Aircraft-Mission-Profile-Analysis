@@ -17,7 +17,7 @@ from aero_model import SimpleDragPolar
 from propulsion_model import SimpleTurbofan
 from aircraft_build import Aircraft
 import unit_conversions as convert
-from solver import (
+from climb_descent_solver import (
     solve_climb_gamma,
     solve_descent_gamma,
     flight_path_angle_residual,

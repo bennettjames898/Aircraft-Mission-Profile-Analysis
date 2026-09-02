@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 from aero_model import SimpleDragPolar
 from propulsion_model import SimpleTurbofan
 from aircraft_build import Aircraft
-from segments import ClimbSegment, FixedCruiseSegment, DescentSegment, LoiterSegment
+from segments import ClimbSegment, ConstantAltCruiseSegment, DescentSegment, LoiterSegment
 from speed_schedule import CASMachSchedule
 import unit_conversions as convert
 from mission import Mission
@@ -59,7 +59,7 @@ def main():
     ### Mision Segments
     MissionSegments = [
         ClimbSegment(start_altitude_ft=1500, end_altitude_ft=35000, schedule=climb_sched, num_steps=100),
-        FixedCruiseSegment(altitude_ft=35000, mach=0.78, range_nm=1200, num_steps=200),
+        ConstantAltCruiseSegment(altitude_ft=35000, mach=0.78, range_nm=1200, num_steps=200),
         DescentSegment(start_altitude_ft=35000, end_altitude_ft=1500, schedule=descent_sched, num_steps=100),
         LoiterSegment(altitude_ft=1500, mach=0.3, duration_min=20.0, num_steps=200),
     ]

@@ -10,7 +10,7 @@ from typing import List
 
 import unit_conversions as convert
 from aircraft_build import Aircraft
-import solver
+import climb_descent_solver
 import speed_schedule
 
 @dataclass
@@ -30,10 +30,10 @@ class MissionSegment:
     def run(self, aircraft: Aircraft, start_weight_kg: float) -> SegmentResult:
         raise NotImplementedError
 
-class FixedCruiseSegment(MissionSegment):
+class ConstantAltCruiseSegment(MissionSegment):
     """
     Constant altitude & Mach cruise for a specified range.
-    'FixedCruiseSegment' uses stepped numerical integration (RK4) on the
+    'ConstantAltCruiseSegment' uses stepped numerical integration (RK4) on the
     weight-vs-distance ODE:
 
         dW/dx = -g * TSFC_effective / V   (Breguet's differential form)
@@ -189,7 +189,7 @@ class CommonGammaSegment(MissionSegment):
         rate_of_climb = tas * math.sin(gamma_rad)  # dh/dt; negative during descent
 
         if abs(rate_of_climb) < 1e-6:
-            raise solver.TrimSolverError(
+            raise climb_descent_solver.TrimSolverError(
                 f"Rate of climb/descent numerically ~0 at altitude={altitude_m:.0f} m "
                 f"(gamma={math.degrees(gamma_rad):.4f} deg)"
                 f"Check gamma_min_deg bracket."
@@ -286,7 +286,7 @@ class ClimbSegment(CommonGammaSegment):
         return aircraft.propulsion_model.max_thrust(altitude_m, mach)
 
     def _solve_gamma(self, aircraft: Aircraft, weight_kg: float, altitude_m: float, mach: float, thrust_n: float, ka: float) -> float:
-        return solver.solve_climb_gamma(aircraft, weight_kg, altitude_m, mach, thrust_n,
+        return climb_descent_solver.solve_climb_gamma(aircraft, weight_kg, altitude_m, mach, thrust_n,
             gamma_min_deg=self.gamma_min_deg, gamma_max_deg=self.gamma_max_deg, ka=ka)
     
 class DescentSegment(CommonGammaSegment):
@@ -303,5 +303,5 @@ class DescentSegment(CommonGammaSegment):
         return aircraft.propulsion_model.idle_thrust(altitude_m, mach)
 
     def _solve_gamma(self, aircraft: Aircraft, weight_kg: float, altitude_m: float, mach: float, thrust_n: float, ka: float) -> float:
-        return solver.solve_descent_gamma(aircraft, weight_kg, altitude_m, mach, thrust_n,
+        return climb_descent_solver.solve_descent_gamma(aircraft, weight_kg, altitude_m, mach, thrust_n,
             gamma_min_deg=self.gamma_min_deg, gamma_max_deg=self.gamma_max_deg, ka=ka)

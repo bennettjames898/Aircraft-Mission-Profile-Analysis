@@ -33,17 +33,17 @@ class MissionResult:
     def summary(self) -> str:
         lines = [
             f"Mission summary: {self.aircraft_name}",
-            f"{'Segment':<12}{'Fuel (lb)':>12}{'Dist (nm)':>12}{'Time (min)':>12}{'End Wt (lb)':>14}",
+            f"{'Segment':<12}{'Time (min)':>12}{'Fuel (lb)':>12}{'Dist (nm)':>12}{'Weight (lb)':>14}",
         ]
         for seg in self.segment_results:
             lines.append(
-                f"{seg.segment_name:<12}{convert.kg_to_lb(seg.fuel_burned_kg):>12.1f}"
-                f"{seg.distance_nm:>12.1f}{seg.time_s/60.0:>12.1f}{convert.kg_to_lb(seg.end_weight_kg):>14.1f}"
+                f"{seg.segment_name:<12}{seg.time_s/60.0:>12.1f}{convert.kg_to_lb(seg.fuel_burned_kg):>12.1f}"
+                f"{seg.distance_nm:>12.1f}{convert.kg_to_lb(seg.end_weight_kg):>14.1f}"
             )
         lines.append("-" * 62)
         lines.append(
-            f"{'TOTAL':<12}{self.total_fuel_burned_lb:>12.1f}"
-            f"{self.total_distance_nm:>12.1f}{self.total_time_hr*60:>12.1f}{self.end_weight_lb:>14.1f}"
+            f"{'TOTAL':<12}{self.total_time_hr*60:>12.1f}{self.total_fuel_burned_lb:>12.1f}"
+            f"{self.total_distance_nm:>12.1f}{self.end_weight_lb:>14.1f}"
         )
         return "\n".join(lines)
 
