@@ -130,7 +130,6 @@ independently-derivable reference in the corresponding test or
 		required reserves are met — layered on top of `Mission.run()` 
 		without modifying it.		
 - [ ] Add a best cruise altitude (BCA) cruise mission segment
-- [ ] Add a constant power setting mission segment for ground ops
 - [ ] Create an implementation of `AeroModelBase` / `PropulsionModelBase`, to
       read in table data from an outside source (i.e. DATCOM) to demonstrate 
 	  knowledge of iterpolated data handling.

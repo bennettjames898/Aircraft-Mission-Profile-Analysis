@@ -14,18 +14,27 @@ import unit_conversions as convert
 
 @dataclass
 class Aircraft:    
-    def __init__(self, name: str, wing_area_ft2: float, operating_empty_weight_lb: float, aero_model: AeroModelBase, propulsion_model: PropulsionModelBase):
+    def __init__(self, name: str, wing_area_ft2: float, operating_empty_weight_lb: float, payload_weight_lb: float, fuel_weight_lb: float, aero_model: AeroModelBase, propulsion_model: PropulsionModelBase):
         self.name = name
-        self.wing_area_ft2 = wing_area_ft2
-        self.operating_empty_weight_lb = operating_empty_weight_lb
         self.wing_area_m2 = wing_area_ft2 * convert.ft_to_m(1)**2
-        self.operating_empty_weight_kg = convert.lb_to_kg(operating_empty_weight_lb)
+        # self.operating_empty_weight_kg = convert.lb_to_kg(operating_empty_weight_lb)
+        self.operating_empty_weight_lb = operating_empty_weight_lb
+        # self.payload_weight_kg = convert.lb_to_kg(payload_weight_lb)
+        self.payload_weight_lb = payload_weight_lb
+        # self.fuel_weight_kg = convert.lb_to_kg(fuel_weight_lb)
+        self.fuel_weight_lb = fuel_weight_lb
         self.aero_model = aero_model
         self.propulsion_model = propulsion_model
         
+        # mass props buildup
+        # self.zero_fuel_weight_kg = self.operating_empty_weight_kg + self.payload_weight_kg
+        # self.gross_weight_kg = self.zero_fuel_weight_kg + self.fuel_weight_kg
+        self.zero_fuel_weight_lb = self.operating_empty_weight_lb + self.payload_weight_lb
+        self.gross_weight_lb = self.zero_fuel_weight_lb + self.fuel_weight_lb
+        
     # Convert current mass (kg) to weight force (N).1
-    def weight_n(self, current_weight_kg: float) -> float:
-        return current_weight_kg * convert.G0
+    def weight_n(self, weight_kg: float) -> float:
+        return weight_kg * convert.G0
 
     # CL required for level, unaccelerated flight (L = W)
     def required_cl(self, weight_kg: float, altitude_m: float, mach: float) -> float:
@@ -71,22 +80,23 @@ if __name__ == "__main__":
     from propulsion_model import SimpleTurbofan
    
     ac = Aircraft(
-        name                        = "Generic Narrowbody",
-        wing_area_ft2                = 1320,
-        operating_empty_weight_lb    = 80000,
+        name                        = "Test Airplane",
+        wing_area_ft2               = 1320,
+        operating_empty_weight_lb   = 80000,
+        payload_weight_lb           = 33000,
+        fuel_weight_lb              = 40000,
         aero_model=SimpleDragPolar(cd0=0.020, aspect_ratio=9.5, oswald_efficiency=0.80),
         propulsion_model=SimpleTurbofan(sea_level_thrust_n=120000, tsfc_kg_per_n_per_s=1.75e-5, num_engines=2),
     )
     
-    total_weight_kg     = 100000
-    alt_m               = convert.ft_to_m(25000)
+    alt_m               = convert.ft_to_m(35000)
     mach                = 0.78
 
     print(f"Aircraft: {ac.name}")
-    print(f"Wing Area:     {ac.wing_area_m2:.0f} m2 | {ac.wing_area_ft2:.0f} ft2")
-    print(f"Empty Weight:  {ac.operating_empty_weight_kg:.0f} kg | {ac.operating_empty_weight_lb:.0f} lb")
-    print(f"Weight: {total_weight_kg:.0f} kg, Alt: {convert.m_to_ft(alt_m):.0f} ft, Mach: {mach}")
-    print(f"Required CL:   {ac.required_cl(total_weight_kg, alt_m, mach):.4f}")
-    print(f"Drag:          {ac.drag_n(total_weight_kg, alt_m, mach):.0f} N")
-    print(f"L/D:           {ac.lift_to_drag(total_weight_kg, alt_m, mach):.2f}")
-    print(f"Fuel flow:     {ac.fuel_flow_kg_s(total_weight_kg, alt_m, mach)*3600:.1f} kg/hr")
+    print(f"Wing Area:      {ac.wing_area_m2/convert.ft_to_m(1)**2:.0f} ft2")
+    print(f"Empty Weight:   {ac.operating_empty_weight_lb:.0f} lb")
+    print(f"Weight:         {ac.gross_weight_lb:.0f} lb") 
+    print(f"Required CL:    {ac.required_cl(convert.lb_to_kg(ac.gross_weight_lb), alt_m, mach):.4f}")
+    print(f"Drag:           {ac.drag_n(convert.lb_to_kg(ac.gross_weight_lb), alt_m, mach):.0f} N")
+    print(f"L/D:            {ac.lift_to_drag(convert.lb_to_kg(ac.gross_weight_lb), alt_m, mach):.2f}")
+    print(f"Fuel flow:      {ac.fuel_flow_kg_s(convert.lb_to_kg(ac.gross_weight_lb), alt_m, mach)*3600:.1f} kg/hr")

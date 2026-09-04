@@ -2,6 +2,8 @@
 Unit conversons used throughout the project.
 
 """
+import math
+
 ###############################################################################
 # ---------------------------- Length Conversions -----------------------------
 ###############################################################################
@@ -35,19 +37,26 @@ def lb_to_kg(lb: float) -> float:
 ###############################################################################
 # ---------------------------- Speed Conversions ------------------------------
 ###############################################################################
-# Convert KNOT to METER PER SEC
+# Convert KNOT to METER/SEC
 def kt_to_ms(kt: float) -> float:
     return kt * 0.514444
 
-# Convert METER PER SEC to KNOT
+# Convert METER/SEC to KNOT
 def ms_to_kt(ms: float) -> float:
     return ms / 0.514444
+
+# Convert METER/SEC to FT/SEC
+def ms_to_fts(ms: float) -> float:
+    return ms * 3.28084
+
+# Convert FT/SEC to METER/SEC
+def fts_to_ms(fts: float) -> float:
+    return fts / 3.28084
 
 ###############################################################################
 # ------------------------ Airspeed Type Conversions --------------------------
 ###############################################################################
 import atmosphere
-import math
 # MACH to True airspeed (m/s)
 def mach_to_tas(mach: float, altitude_m: float, delta_isa: float = 0.0) -> float:
     a = atmosphere.isa_conditions(altitude_m, delta_isa)["speed_of_sound_m_s"]

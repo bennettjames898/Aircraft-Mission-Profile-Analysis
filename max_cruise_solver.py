@@ -1,48 +1,14 @@
 """
-Mission-level sizing: solving for a free mission parameter such that
-the mission satisfies a weight/fuel constraint, by repeatedly running
-the FULL mission and root-finding on the result.
+This script solves for the maximum cruise range in a mission through brentq() 
+to locate the range at which 0 residual fuel remains in the entire mission.
 
-This is a different kind of iteration than anything else in the
-codebase so far, and it's worth being explicit about why it lives in
-its own module rather than as a MissionSegment:
+This tool iterates outside of the larger mission.py context rather than within 
+a single segment. This architecture maintains the MissionSegment framework 
+where individual segments do not interact with the mission beofre or after.
 
-  - atmosphere/aero/propulsion are point calculations -- no iteration.
-  - solver.py root-finds a single number (flight-path angle) at a
-    single point in space, given a fixed thrust setting and weight.
-  - segments.py integrates ONE segment's own physics along its own
-    independent variable (distance, time, or altitude), calling
-    solver.py at each step. A segment only ever sees its own local
-    starting weight; it has no idea what ran before it or after it.
-  - mission.py sequences a list of segments and runs it ONCE, carrying
-    weight forward -- still no iteration at the mission level.
-
-"Maximum range on the fuel loaded" is a fundamentally different
-problem: it requires running the ENTIRE mission repeatedly, adjusting
-one segment's parameter (cruise range) each time, until the mission's
-ending weight matches a target. A segment's contract is deliberately
-narrow (start weight in, end weight out) specifically so segments stay
-composable and independently testable -- reaching into that contract to
-give one segment awareness of fuel spent before it and required after
-it would mean either giving it a back-reference to the whole mission or
-duplicating Mission's sequencing logic inside a segment. Keeping this
-solver as a separate module preserves that boundary: segments stay
-dumb and local, and "solve across the whole mission" logic lives here,
-one level up from segments.py the same way segments.py sits one level
-up from solver.py. Three nested iterations, three modules:
-
-    solver.py          -- point-in-space force balance (innermost)
-    segments.py         -- per-segment RK4 march over one segment's ODE
-    mission_sizing.py   -- whole-mission closure (outermost)
-
-A consequence worth relying on rather than working around: every
-MissionSegment.run() is stateless with respect to its own instance (it
-only reads self.* configuration and returns a fresh SegmentResult) --
-none of them mutate self. That means the same climb/descent/reserve
-segment objects can be safely reused across many mission re-runs here
-without rebuilding them each iteration; only the segment whose
-parameter is actually being searched over (cruise range) needs to be
-freshly constructed per guess.
+brentq is used to iterate on the cruise range, and uses standard scipy inputs 
+to allocate the search bracket andsolution tolerance. Logic is in place to 
+expand the search bracket if the root (max range & zero fuel) cannot be found. 
 """
 
 from typing import Callable, List, Tuple
@@ -61,7 +27,7 @@ class MissionSizingError(RuntimeError):
     pass
 
 
-class RangeResult:
+class MaxRangeIteratedResult:
     def __init__(self, cruise_range_nm: float, mission_result: MissionResult, residual_lb: float, iterations: int):
         self.cruise_range_nm = cruise_range_nm
         self.mission_result = mission_result
@@ -79,11 +45,10 @@ class RangeResult:
 def solve_cruise_range(
     aircraft: Aircraft,
     build_segments_fn: Callable[[float], List[MissionSegment]],
-    start_weight_lb: float,
-    zero_fuel_weight_lb: float,
+    saveDir: str,
     range_bracket_nm: Tuple[float, float] = (0, 6000),
-    xtol_nm: float = 0.1,
-    max_bracket_expansions: int = 10) -> RangeResult:
+    converge_tol: float = 0.1,
+    max_bracket_expansions: int = 10) -> MaxRangeIteratedResult:
     """
     Solve for the cruise range at which flying the mission
     (built by 'build_segments_fn' at some range) ends at 'zero_fuel_weight_lb'.
@@ -91,35 +56,31 @@ def solve_cruise_range(
     Parameters
     ----------
     build_segments_fn : callable(cruise_range_nm) -> list[MissionSegment]
-        Builds the COMPLETE ordered segment list for a test cruise range, e.g.:
+        Builds the COMPLETE mission segment list for a test cruise range, e.g.:
 
             def build(range_nm):
                 return [climb, CruiseSegment(..., range_nm=range_nm), descent]
 
         Only one segment entry can scale with the range_nm argument passed in.
-    start_weight_lb : float
-        Fixed takeoff weight (OEW + payload + fuel load). This is NOT
-        iterated.
-    zero_fuel_weight_lb : float
-        OEW + payload. The target ending weight.
     range_bracket_nm : tuple
         Initial (low, high) search bracket. Automatically widened (up to
         max_bracket_expansions doublings) if the upper bound doesn't locate
         a sign change for brentq.
-    xtol_nm : float
+    converge_tol : float
         Convergence tolerance on range, passed to brentq.
 
     Returns
     -------
-    RangeResult
+    MaxRangeIteratedResult
+        High level stats of iteration attempts requried to converge
 
     Raises
     ------
     MissionSizingError
-        If the fixed portions of the mission alone already consume more
-        fuel than is available (no cruise range, however short, is
-        flyable), or if a sign change can't be bracketed within
-        max_bracket_expansions doublings of the upper bound.
+        If the fixed portions of the mission already consume more
+        fuel than is available (no cruise range is flyable), or if a sign 
+        change can't be bracketed within max_bracket_expansions doublings 
+        of the upper bound.
     """
     call_count = 0
 
@@ -127,12 +88,12 @@ def solve_cruise_range(
         nonlocal call_count
         call_count += 1
         segments = build_segments_fn(cruise_range_nm)
-        mission = Mission(aircraft=aircraft, segments=segments)
-        result = mission.run(start_weight_lb)
+        mission = Mission(aircraft=aircraft, segments=segments,saveDir=saveDir)
+        result = mission.run()
         # Positive: mission ended ABOVE zero-fuel weight (fuel left over,
         # could fly further). Negative: this range isn't achievable on
         # the fuel available (would need to burn more than is loaded).
-        return result.end_weight_lb - zero_fuel_weight_lb
+        return result.end_weight_lb - aircraft.zero_fuel_weight_lb
 
     lo, hi = range_bracket_nm
     f_lo = residual(lo)
@@ -162,13 +123,13 @@ def solve_cruise_range(
             f"Provide a larger range_bracket_nm, or check for errors in fuel flow "
         )
 
-    converged_range_nm  = brentq(residual, lo, hi, xtol=xtol_nm)
+    converged_range_nm  = brentq(residual, lo, hi, xtol=converge_tol)
     final_segments      = build_segments_fn(converged_range_nm)
-    final_mission       = Mission(aircraft=aircraft, segments=final_segments)
-    final_result        = final_mission.run(start_weight_lb)
-    final_residual_lb   = final_result.end_weight_lb - zero_fuel_weight_lb
+    final_mission       = Mission(aircraft=aircraft, segments=final_segments, saveDir=saveDir)
+    final_result        = final_mission.run()
+    final_residual_lb   = final_result.end_weight_lb - aircraft.zero_fuel_weight_lb
 
-    return RangeResult(
+    return MaxRangeIteratedResult(
         cruise_range_nm = converged_range_nm,
         mission_result  = final_result,
         residual_lb     = final_residual_lb,
@@ -182,33 +143,28 @@ def solve_cruise_range(
     'build_segments_fn' that inserts a ConstantAltCruiseSegment().
     """
 def solve_cruise_range_iterate(
-    aircraft: Aircraft,
-    MissionSegmentList: List[MissionSegment],
-    IndexToPlaceIteration: int,
-    cruise_altitude_ft: float,
-    cruise_mach: float,
-    start_weight_lb: float,
-    zero_fuel_weight_lb: float,
-    cruise_num_steps: int = 100,
-    range_bracket_nm: Tuple[float, float] = (0, 6000),
-    xtol_nm: float = 0.1,
-    ) -> RangeResult:
+    saveDir:                str,
+    aircraft:               Aircraft,
+    MissionSegmentList:     List[MissionSegment],
+    IndexToPlaceIteration:  int,
+    cruise_altitude_ft:     float,
+    cruise_mach:            float,
+    cruise_num_steps:       int = 100,
+    range_bracket_nm:       Tuple[float, float] = (0, 6000),
+    converge_tol:           float = 0.1,
+    ) -> MaxRangeIteratedResult:
 
     # This def is called by the iteration with various 'range_nm' values
     def build(range_nm: float) -> List[MissionSegment]:
         nonlocal MissionSegmentList
         nonlocal IndexToPlaceIteration
         IterateSegment = ConstantAltCruiseSegment(
-            altitude_ft=cruise_altitude_ft,
-            mach=cruise_mach,
-            range_nm=range_nm,
-            num_steps=cruise_num_steps,
+            altitude_ft = cruise_altitude_ft,
+            mach        = cruise_mach,
+            range_nm    = range_nm,
+            num_steps   = cruise_num_steps,
         )
         FullMissionSegments = MissionSegmentList.copy()
         FullMissionSegments.insert(IndexToPlaceIteration, IterateSegment)
         return FullMissionSegments
-
-    return solve_cruise_range(
-        aircraft, build, start_weight_lb, zero_fuel_weight_lb,
-        range_bracket_nm, xtol_nm,
-    )
+    return solve_cruise_range(aircraft,build,saveDir,range_bracket_nm,converge_tol)

@@ -72,7 +72,7 @@ def test_solved_mission_lands_at_zero_fuel_weight():
         zero_fuel_weight_lb     = zero_fuel_weight_lb,
         cruise_num_steps        = 100,
         range_bracket_nm        = (0.0, 6000.0),
-        xtol_nm                 = 0.1,
+        converge_tol            = 0.1,
     )
 
     assert abs(result.mission_result.end_weight_lb - zero_fuel_weight_lb) < 1.0, (
@@ -102,7 +102,7 @@ def test_total_fuel_burned_matches_loaded_fuel():
         zero_fuel_weight_lb     = zero_fuel_weight_lb,
         cruise_num_steps        = 100,
         range_bracket_nm        = (0.0, 6000.0),
-        xtol_nm                 = 0.1,
+        converge_tol            = 0.1,
     )
 
     assert abs(result.mission_result.total_fuel_burned_lb - fuel_lb) < 1.0
@@ -130,7 +130,7 @@ def test_more_fuel_gives_more_range():
             zero_fuel_weight_lb     = zero_fuel_weight_lb,
             cruise_num_steps        = 100,
             range_bracket_nm        = (0.0, 6000.0),
-            xtol_nm                 = 0.1,
+            converge_tol            = 0.1,
         )
         
         ranges.append(result.cruise_range_nm)
@@ -160,7 +160,7 @@ def test_insufficient_fuel_raises():
             zero_fuel_weight_lb     = zero_fuel_weight_lb,
             cruise_num_steps        = 100,
             range_bracket_nm        = (0.0, 6000.0),
-            xtol_nm                 = 0.1,
+            converge_tol            = 0.1,
         )
     except MissionSizingError:
         raised = True
@@ -184,7 +184,7 @@ def test_bracket_auto_expands_from_tiny_initial_guess():
         zero_fuel_weight_lb     = zero_fuel_weight_lb,
         cruise_num_steps        = 100,
         range_bracket_nm        = (0.0, 50), # Check that resizing works
-        xtol_nm                 = 0.1,
+        converge_tol            = 0.1,
     )
 
     assert abs(result.mission_result.end_weight_lb - zero_fuel_weight_lb) < 1.0
@@ -218,7 +218,7 @@ def test_reserve_segment_reduces_max_range():
         zero_fuel_weight_lb     = zero_fuel_weight_lb,
         cruise_num_steps        = 100,
         range_bracket_nm        = (0.0, 50), # Check that resizing works
-        xtol_nm                 = 0.1,
+        converge_tol            = 0.1,
     )
 
     ### Mision Segments with reserve
@@ -237,7 +237,7 @@ def test_reserve_segment_reduces_max_range():
         zero_fuel_weight_lb     = zero_fuel_weight_lb,
         cruise_num_steps        = 100,
         range_bracket_nm        = (0.0, 50), # Check that resizing works
-        xtol_nm                 = 0.1,
+        converge_tol            = 0.1,
     )
     assert with_reserve.cruise_range_nm < no_reserve.cruise_range_nm
 
