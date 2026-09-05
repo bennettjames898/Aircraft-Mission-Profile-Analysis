@@ -26,11 +26,11 @@ against the closed-form Breguet range equation as a unit test
 aero_model.py           - Aero interface + simple parabolic drag polar implementation
 aircraft_build.py 	    - Aircraft class: wraps geometry, weights, aero + propulsion models
 atmosphere.py           - ISA atmosphere model (temp, pressure, density, speed of sound)
-max_cruise_solver.py    - Outer-loop solver for max range given fixed fuel
+solver_mission_range.py - Outer-loop solver for max range given fixed fuel
+solver_climb_descent.py - Holds the brentq trim solution used in Climb/Descent
 mission.py              - Mission class: sequences segments, carries weight forward
 propulsion_model.py     - Propulsion interface + simple constant-TSFC turbofan implementation
 segments.py             - MissionSegment base class, ConstantAltCruiseSegment (RK4), LoiterSegment (RK4), ClimbSegment/DescentSegment (brentq)
-climb_descent_solver.py - Holds the brentq trim solution used in Climb/Descent
 speed_schedule.py       - Climb/descent speed schedules (constant Mach/TAS/CAS, CAS/Mach crossover)
 unit_conversions.py     - Collection of unit conversions used across the project
 examples/               - Runnable end-to-end mission scripts
@@ -50,19 +50,19 @@ by writing one new class, with no changes necessary for the solver code.
   required-CL relationship.
 - **Climbing/descending trim**: L = W cos(γ), T − D = W sin(γ), where D
   depends on CL which depends on γ. The implicit equation is solved 
-  numerically via `scipy.optimize.brentq` in `climb_descent_solver.py`, at every point 
+  numerically via `scipy.optimize.brentq` in `solver_climb_descent.py`, at every point 
   along the climb/descent profile.
 - **Climb acceleration correction**: Excess thrust required to accelerate 
   in TAS is accounted for in climbs and descents by the factor
   `ka = 1 + (V/g)(dV/dh)` in the force balance (`solver.py`), computed
   from the schedule's `dtas_dh` at every point. See the
-  references and full derivation in `climb_descent_solver.py`'s module 
+  references and full derivation in `solver_climb_descent.py`'s module 
   docstring (Marchman, *Aerodynamics and Aircraft Performance*, Virginia Tech)
 - **Coupled weight/fuel-burn integration**: 4th-order Runge-Kutta on
   `dW/dx = -fuel_flow / V` for cruise, `dW/dt = -fuel_flow` for loiter
 - **Breguet range equation** as an independent closed-form check on the
   numerical integrator.
-- **Mission-level max-range sizing** (`max_cruise_solver.py`): given a
+- **Mission-level max-range sizing** (`solver_mission_range.py`): given a
   fixed fuel weight, this tool solves for the maximum cruise range. This is 
   a distinct iteration loop wrapping the entire mission in an outer root-find 
   rather than iterating within a single segment. 
@@ -70,7 +70,6 @@ by writing one new class, with no changes necessary for the solver code.
 ## Quick start
 ```bash
 pip install -r requirements.txt
-python3 examples/simple_cruise_mission.py
 python3 examples/full_mission_profile.py
 python3 examples/max_range_iterate_mission.py
 python3 -m pytest tests/ -v

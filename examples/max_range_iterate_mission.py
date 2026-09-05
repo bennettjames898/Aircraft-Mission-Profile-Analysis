@@ -18,7 +18,7 @@ from aircraft_build import Aircraft
 from segments import GroundOps, ClimbSegment, DescentSegment, LoiterSegment
 from speed_schedule import CASMachSchedule
 import unit_conversions as convert
-from max_cruise_solver import solve_cruise_range_iterate
+from solver_mission_range import solve_cruise_range_iterate
 
 
 def main():
@@ -75,12 +75,12 @@ def main():
         converge_tol            = 0.1, # nm
     )
 
-    print(f"Payload: {aircraft.payload_weight_lb:.0f} lb, Fuel: {aircraft.fuel_weight_lb:.0f} lb, "
-          f"Takeoff weight: {aircraft.gross_weight_lb:.0f} lb")
-    print(f"Converged in {result.iterations} iterations "
-          f"(residual: {result.residual_lb:.4f} lb)\n")
-    print(f"Total mission distance: {result.mission_result.total_distance_nm:.1f} nm\n")
-    print(result.mission_result.summary())
+    # print(f"Payload: {aircraft.payload_weight_lb:.0f} lb, Fuel: {aircraft.fuel_weight_lb:.0f} lb, "
+    #       f"Takeoff weight: {aircraft.gross_weight_lb:.0f} lb")
+    # print(f"Converged in {result.iterations} iterations "
+    #       f"(residual: {result.residual_lb:.4f} lb)\n")
+    # print(f"Total mission distance: {result.mission_result.total_distance_nm:.1f} nm\n")
+    # print(result.mission_result.summary())
 
 if __name__ == "__main__":
     main()

@@ -34,13 +34,11 @@ class MaxRangeIteratedResult:
         self.residual_lb = residual_lb
         self.iterations = iterations
 
-    def __repr__(self):
-        return (
-            f"RangeResult(cruise_range_nm={self.cruise_range_nm:.1f}, "
-            f"total_distance_nm={self.mission_result.total_distance_nm:.1f}, "
-            f"end_weight_lb={self.mission_result.end_weight_lb:.1f}, "
-            f"residual_lb={self.residual_lb:.4f}, iterations={self.iterations})"
-        )
+        print(
+            f"Range converged in {self.iterations} iterations "
+            f"(residual: {self.residual_lb:.4f} lb)\n"
+            f"Iterated to Segment range = {self.cruise_range_nm:.1f} [nm]"
+            )
 
 def solve_cruise_range(
     aircraft: Aircraft,

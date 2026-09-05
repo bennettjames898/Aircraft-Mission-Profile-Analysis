@@ -8,11 +8,11 @@ should subclass AeroModelBase and implement the same two methods.
 
 import math
 from abc import ABC, abstractmethod
-
+import inspect
 
 class AeroModelBase(ABC):
     """Abstract interface all aero models must implement."""
-
+    name = "AeroModelBase"
     @abstractmethod
     def get_cd(self, cl: float, mach: float) -> float:
         """Return total drag coefficient for given lift coefficient and Mach."""
@@ -37,7 +37,7 @@ class SimpleDragPolar(AeroModelBase):
     `mach_drag_rise` correction is included as a placeholder so the tool 
     produces qualitatively correct cruise-Mach behavior.
     """
-
+    name = "SimpleDragPolar"
     def __init__(
         self,
         cd0: float,
@@ -46,12 +46,14 @@ class SimpleDragPolar(AeroModelBase):
         mach_crit: float = 0.78,
         mach_drag_rise_coeff: float = 20.0,
     ):
+        self.modelID = self.name
         self.cd0 = cd0
         self.aspect_ratio = aspect_ratio
         self.e = oswald_efficiency
         self.k = 1.0 / (math.pi * aspect_ratio * oswald_efficiency)
         self.mach_crit = mach_crit
         self.mach_drag_rise_coeff = mach_drag_rise_coeff
+        self.inputs = self.__dict__ # collect input terms for output files
 
     def get_cd(self, cl: float, mach: float) -> float:
         cd0_effective = self.cd0

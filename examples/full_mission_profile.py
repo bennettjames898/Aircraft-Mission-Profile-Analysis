@@ -24,10 +24,9 @@ from speed_schedule import CASMachSchedule
 import unit_conversions as convert
 from mission import Mission
 
-
 def main():
     ### Save Directory
-    saveDir = ".//"
+    saveDir = ".//"    
     
     ### Aircraft Definition
     aircraft = Aircraft(
@@ -47,12 +46,6 @@ def main():
             num_engines         = 2,
         ),
     )
-
-    # Fuel and Stores
-    # payload_lb  = 33000
-    # fuel_lb     = 40000
-    # zero_fuel_weight_lb = aircraft.operating_empty_weight_lb + payload_lb
-    # start_weight_lb = aircraft.operating_empty_weight_lb + payload_lb + fuel_lb
 
     ### Climb and Descent Schedule Definition
     # follow 280 KCAS until M0.78, then follow M0.78.
@@ -74,20 +67,12 @@ def main():
     mission = Mission(aircraft=aircraft, segments=MissionSegments, saveDir=saveDir)
     result = mission.run() # runs the mission
     print(result.summary()) # print summary to cmd line
-    # if result.end_weight_lb < zero_fuel_weight_lb:
-    #     print(
-    #         f"\nWARNING: mission ends below zero-fuel weight "
-    #         f"({result.end_weight_lb:.0f} lb < {zero_fuel_weight_lb:.0f} lb). "
-    #         f"Not flyable with the fuel loaded."
-    #     )
-    # else:
-    #     print(f"\nFuel remaining at end of mission: {result.end_weight_lb - zero_fuel_weight_lb:.0f} lb")
 
     # --- Build a single altitude-vs-distance profile across all segments ---
-    cumulative_distance_nm = 0.0
-    profile_distance = []
-    profile_altitude = []
-    profile_weight = []
+    cumulative_distance_nm  = 0.0
+    profile_distance        = []
+    profile_altitude        = []
+    profile_weight          = []
 
     for seg_result in result.segment_results:
         for point in seg_result.history:

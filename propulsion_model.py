@@ -11,6 +11,7 @@ from abc import ABC, abstractmethod
 
 
 class PropulsionModelBase(ABC):
+    name = "PropulsionModelBase"
     @abstractmethod
     def max_thrust(self, altitude_m: float, mach: float) -> float:
         """Maximum available thrust (N) at altitude/Mach, full throttle."""
@@ -37,7 +38,7 @@ class SimpleTurbofan(PropulsionModelBase):
     where m ~ 0.7-1.0 for high-bypass turbofans, and f(M) is a mild
     Mach correction. These are conceptual-design approximations (Mattingly).
     """
-
+    name = "SimpleTurbofan"
     def __init__(
         self,
         sea_level_thrust_n: float, # PER ENGINE
@@ -46,11 +47,13 @@ class SimpleTurbofan(PropulsionModelBase):
         lapse_exponent: float = 0.8,
         idle_thrust_fraction: float = 0.05,
     ):
+        self.modelID = self.name
         self.sea_level_thrust_n = sea_level_thrust_n
         self.tsfc = tsfc_kg_per_n_per_s
         self.num_engines = num_engines
         self.lapse_exponent = lapse_exponent
         self.idle_thrust_fraction = idle_thrust_fraction
+        self.inputs = self.__dict__ # collect input terms for output files
 
     def max_thrust(self, altitude_m: float, mach: float) -> float:
         from atmosphere import isa_conditions, RHO0

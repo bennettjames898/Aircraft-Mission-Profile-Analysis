@@ -17,18 +17,13 @@ class Aircraft:
     def __init__(self, name: str, wing_area_ft2: float, operating_empty_weight_lb: float, payload_weight_lb: float, fuel_weight_lb: float, aero_model: AeroModelBase, propulsion_model: PropulsionModelBase):
         self.name = name
         self.wing_area_m2 = wing_area_ft2 * convert.ft_to_m(1)**2
-        # self.operating_empty_weight_kg = convert.lb_to_kg(operating_empty_weight_lb)
         self.operating_empty_weight_lb = operating_empty_weight_lb
-        # self.payload_weight_kg = convert.lb_to_kg(payload_weight_lb)
         self.payload_weight_lb = payload_weight_lb
-        # self.fuel_weight_kg = convert.lb_to_kg(fuel_weight_lb)
         self.fuel_weight_lb = fuel_weight_lb
         self.aero_model = aero_model
         self.propulsion_model = propulsion_model
         
         # mass props buildup
-        # self.zero_fuel_weight_kg = self.operating_empty_weight_kg + self.payload_weight_kg
-        # self.gross_weight_kg = self.zero_fuel_weight_kg + self.fuel_weight_kg
         self.zero_fuel_weight_lb = self.operating_empty_weight_lb + self.payload_weight_lb
         self.gross_weight_lb = self.zero_fuel_weight_lb + self.fuel_weight_lb
         
