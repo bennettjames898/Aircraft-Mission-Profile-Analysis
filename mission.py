@@ -1,8 +1,17 @@
 """
 Mission class: sequences a list of MissionSegments end-to-end, carrying
-weight forward from one segment to the next.
+weight forward from one segment to the next. 
+    - call 'result = mission.run(Aircraft(), List[MissionSegment], saveDir)' 
+      to evaluate the 'Aircraft' model in the MissionSegment list.
+          - 'saveDir=None' will not save any files (must use 
+            'print(result.summary)' to see the output summary tabe).
+          - Providing a filepath to save will also print the summary to the 
+            command line.
+    - 'Aircraft.gross_weight_lb' is the starting weight of the mission run. 
+      Adjust the aircraft's mass properties to change the starting weight.
 
 All physics lives in segments.py and aircraft.py.
+
 Mission's only job is bookkeeping: run segment 1,
 take the ending weight as segment 2's starting weight, and so on, while
 accumulating totals and keeping every segment's history for plotting.
@@ -17,17 +26,42 @@ import unit_conversions as convert
 
 @dataclass
 class MissionResult:
-    aircraft: Aircraft
-    end_weight_lb: float
-    total_fuel_burned_lb: float
-    total_distance_nm: float
-    total_time_s: float
-    saveDir: str
-    missionSuccess: str
-    segment_results: List[SegmentResult] = field(default_factory=list)
-
-    def summary(self) -> str:
+    """
+    MissionResult creates results files for the whole mission (summary table 
+    and a time history of each step through each segment). 
+    """
+    def __init__(
+            self,     
+            aircraft: Aircraft,
+            end_weight_lb: float,
+            total_fuel_burned_lb: float,
+            total_distance_nm: float,
+            total_time_s: float,
+            saveDir: str,
+            missionSuccess: str,
+            segment_results: List[SegmentResult] = field(default_factory=list),
+        ):
+        self.aircraft = aircraft
+        self.end_weight_lb = end_weight_lb
+        self.total_fuel_burned_lb = total_fuel_burned_lb
+        self.total_distance_nm = total_distance_nm
+        self.total_time_s = total_time_s
+        self.saveDir = saveDir
+        self.missionSuccess = missionSuccess
+        self.segment_results = segment_results
         
+        # setup the summary file of the mission
+        summary, fnameSum = self.buildSummary()
+        self.summary = summary
+        
+        # build the time history file of the mission - TODO
+        
+        # display and print if desired 
+        if self.saveDir is not None:
+            print(summary)
+            self.writeFile(fnameSum,summary)
+            
+    def buildSummary(self) -> str:
         # Collect aero input values
         aero_lines = ["\n----------------------------------Aerodynamic Model----------------------------------"]
         aeroIn = self.aircraft.aero_model.inputs
@@ -85,16 +119,23 @@ class MissionResult:
         sumOutTab = "\n".join(lines)
         summaryOut = sumOutAero+sumOutProp+sumOutTab
         fnameSum = "MssnSum_"+self.aircraft.name.replace(" ","-")+".txt"
-        with open(self.saveDir+"\\"+fnameSum,"w") as file:
-            for line in summaryOut:
+        
+        return summaryOut, fnameSum
+            
+    def writeFile(self,filename,text):
+        with open(self.saveDir+"\\"+filename,"w") as file:
+            print("Writing Mission Summary...")
+            for line in text:
                 file.write(line)
-        return summaryOut
 
 class Mission:
+    """
+    Mission runs the list of mission segments 
+    """
     def __init__(self, aircraft: Aircraft, segments: List[MissionSegment], saveDir: str):
         self.aircraft = aircraft
         self.segments = segments
-        self.saveDir = saveDir
+        self.saveDir = saveDir # None = no saved file
 
     # Evlauate the segment list beginning at some defined weight
     def run(self) -> MissionResult:

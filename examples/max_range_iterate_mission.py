@@ -36,11 +36,11 @@ def main():
             cd0                 = 0.020,
             aspect_ratio        = 9.5, 
             oswald_efficiency   = 0.80
-            ),
+        ),
         propulsion_model=SimpleTurbofan(
-            sea_level_thrust_n  = 120000,
-            tsfc_kg_per_n_per_s = 1.75e-5,
-            num_engines         = 2,
+            sea_level_thrust_lbf    = 27000,
+            tsfc_lb_per_lbfhr       = 0.62,
+            num_engines             = 2,
         ),
     )
 
@@ -56,7 +56,7 @@ def main():
         GroundOps(duration_min=60, throttle_set_pct=0.0),
         GroundOps(duration_min=1, throttle_set_pct=1.0),
         ClimbSegment(start_altitude_ft=1500, end_altitude_ft=35000, schedule=climb_sched, num_steps=100),
-        # iterated ConstantAltCruiseSegment goes here (IndexToPlaceIteration = 1)
+        # iterated ConstantAltCruiseSegment goes here (IndexToPlaceIteration = 2)
         DescentSegment(start_altitude_ft=35000, end_altitude_ft=1500, schedule=descent_sched, num_steps=100),
         LoiterSegment(altitude_ft=1500, mach=0.3, duration_min=20, num_steps=200),
         GroundOps(duration_min=60, throttle_set_pct=0),
@@ -75,12 +75,8 @@ def main():
         converge_tol            = 0.1, # nm
     )
 
-    # print(f"Payload: {aircraft.payload_weight_lb:.0f} lb, Fuel: {aircraft.fuel_weight_lb:.0f} lb, "
-    #       f"Takeoff weight: {aircraft.gross_weight_lb:.0f} lb")
-    # print(f"Converged in {result.iterations} iterations "
-    #       f"(residual: {result.residual_lb:.4f} lb)\n")
-    # print(f"Total mission distance: {result.mission_result.total_distance_nm:.1f} nm\n")
-    # print(result.mission_result.summary())
+    if saveDir is None:
+        print(result.mission_result.summary)
 
 if __name__ == "__main__":
     main()

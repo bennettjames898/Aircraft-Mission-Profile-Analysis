@@ -86,7 +86,7 @@ def solve_cruise_range(
         nonlocal call_count
         call_count += 1
         segments = build_segments_fn(cruise_range_nm)
-        mission = Mission(aircraft=aircraft, segments=segments,saveDir=saveDir)
+        mission = Mission(aircraft=aircraft, segments=segments,saveDir=None) # do not save or display intermediate runs
         result = mission.run()
         # Positive: mission ended ABOVE zero-fuel weight (fuel left over,
         # could fly further). Negative: this range isn't achievable on

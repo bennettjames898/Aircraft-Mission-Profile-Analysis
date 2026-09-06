@@ -2,7 +2,7 @@
 Full mission example: climb, cruise, descent, and a loiter segment. 
 This exercises every segment type currently implemented and
 is the profile to run when checking that the whole mission chain
-(not just individual segments) behaves sensibly.
+(not just individual segments) behaves properly.
 
 Run with:  python3 examples/full_mission_profile.py
 """
@@ -39,11 +39,11 @@ def main():
             cd0                 = 0.020,
             aspect_ratio        = 9.5, 
             oswald_efficiency   = 0.80
-            ),
+        ),
         propulsion_model=SimpleTurbofan(
-            sea_level_thrust_n  = 120000,
-            tsfc_kg_per_n_per_s = 1.75e-5,
-            num_engines         = 2,
+            sea_level_thrust_lbf    = 27000,
+            tsfc_lb_per_lbfhr       = 0.62,
+            num_engines             = 2,
         ),
     )
 
@@ -63,10 +63,16 @@ def main():
         LoiterSegment(altitude_ft=1500, mach=0.3, duration_min=20.0, num_steps=200),
     ]
 
-    ### RUN MissionSegments @ start_weight_lb
-    mission = Mission(aircraft=aircraft, segments=MissionSegments, saveDir=saveDir)
+    ### BUILD & RUN a noniterative mission @ aircraft.gross_weight_lb
+    # No changes to segment ranges will occur, excess fuel may remain at end.
+    mission = Mission(
+        aircraft=aircraft, 
+        segments=MissionSegments, 
+        saveDir=saveDir
+    )
     result = mission.run() # runs the mission
-    print(result.summary()) # print summary to cmd line
+    if saveDir is None:
+        print(result.summary) # print summary to cmd line (if saveDir=None)
 
     # --- Build a single altitude-vs-distance profile across all segments ---
     cumulative_distance_nm  = 0.0

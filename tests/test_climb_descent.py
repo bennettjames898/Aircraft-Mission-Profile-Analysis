@@ -17,7 +17,7 @@ from aero_model import SimpleDragPolar
 from propulsion_model import SimpleTurbofan
 from aircraft_build import Aircraft
 import unit_conversions as convert
-from climb_descent_solver import (
+from solver_climb_descent import (
     solve_climb_gamma,
     solve_descent_gamma,
     flight_path_angle_residual,
@@ -30,19 +30,22 @@ def build_test_aircraft() -> Aircraft:
         name                        = "Test Aircraft",
         wing_area_ft2               = 1320,
         operating_empty_weight_lb   = 92500,
+        payload_weight_lb           = 33000,
+        fuel_weight_lb              = 40000,
         aero_model=SimpleDragPolar(
             cd0                 = 0.020, 
             aspect_ratio        = 9.5, 
-            oswald_efficiency   = 0.80),
+            oswald_efficiency   = 0.80
+        ),
         propulsion_model=SimpleTurbofan(
-            sea_level_thrust_n  = 120000, 
-            tsfc_kg_per_n_per_s = 1.75e-5, 
+            sea_level_thrust_lbf= 27000,
+            tsfc_lb_per_lbfhr   = 0.62,
             num_engines         = 2
         ),
     )
 
 # --- Solver-level tests ---
-def test_climb_gamma_residual(MACH, ALT, start_weight_kg):
+def test_climb_gamma_residual(MACH, ALT):
     """Gamma returned by solve_climb_gamma must satisfy the force balance 
     equation it was solved from."""
     print("Running: test_climb_gamma_residual")
@@ -50,25 +53,53 @@ def test_climb_gamma_residual(MACH, ALT, start_weight_kg):
     alt_m       = convert.ft_to_m(ALT)
     thrust_n = ac.propulsion_model.max_thrust(alt_m, MACH)
 
-    gamma = solve_climb_gamma(ac, start_weight_kg, alt_m, MACH, thrust_n)
-    residual = flight_path_angle_residual(gamma, ac, start_weight_kg, alt_m, MACH, thrust_n, 1)
+    gamma = solve_climb_gamma(
+        ac, 
+        convert.lb_to_kg(ac.gross_weight_lb), 
+        alt_m, 
+        MACH, 
+        thrust_n
+        )
+    residual = flight_path_angle_residual(
+        gamma, 
+        ac, 
+        convert.lb_to_kg(ac.gross_weight_lb), 
+        alt_m, 
+        MACH, 
+        thrust_n, 
+        1
+        )
 
     assert abs(residual) < 1.0, print(f" High Residual: {residual:.4f} N")
     assert gamma > 0, print("Gamma is negative: {gamma:.4f} rad")
 
-def test_descent_gamma_residual(MACH, ALT, start_weight_kg):
+def test_descent_gamma_residual(MACH, ALT):
     print("Running: test_descent_gamma_residual")
     ac = build_test_aircraft()
     alt_m = convert.ft_to_m(ALT)
     idle_n = ac.propulsion_model.idle_thrust(alt_m, MACH)
 
-    gamma = solve_descent_gamma(ac, start_weight_kg, alt_m, MACH, idle_n)
-    residual = flight_path_angle_residual(gamma, ac, start_weight_kg, alt_m, MACH, idle_n, 1)
+    gamma = solve_descent_gamma(
+        ac, 
+        convert.lb_to_kg(ac.gross_weight_lb), 
+        alt_m, 
+        MACH, 
+        idle_n
+        )
+    residual = flight_path_angle_residual(
+        gamma, 
+        ac,
+        convert.lb_to_kg(ac.gross_weight_lb), 
+        alt_m, 
+        MACH, 
+        idle_n, 
+        1
+        )
 
     assert abs(residual) < 1.0, print(f" High Residual: {residual:.4f} N")
     assert gamma < 0, print("Gamma is positive: {gamma:.4f} rad")
 
-def test_climb_above_ceiling():
+def test_climb_above_ceiling(MACH, ALT):
     """
     At a weight/altitude/Mach combination where required thrust exceeds
     available thrust, the solver should fail.
@@ -79,32 +110,38 @@ def test_climb_above_ceiling():
     try:
         # Excessive weight for the wing/thrust combination at high altitude --
         # should exceed available thrust before reaching gamma_min_deg.
-        solve_climb_gamma(ac, weight_kg=200000, altitude_m=convert.ft_to_m(40000), mach=0.3, thrust_n=ac.propulsion_model.max_thrust(convert.ft_to_m(40000), 0.3))
+        solve_climb_gamma(
+            ac, 
+            convert.lb_to_kg(ac.gross_weight_lb+500000), 
+            altitude_m=convert.ft_to_m(ALT+30000), 
+            mach=MACH, 
+            thrust_n=ac.propulsion_model.max_thrust(convert.ft_to_m(ALT), MACH)
+            )
     except TrimSolverError:
         with_error = True
     assert with_error, print("Expected TrimSolverError for a no-climb condition, check hardcoded inputs.")
 
 
 # --- Segment-level tests ---
-def test_climb_segment_altitude_and_weight_monotonic():
+def test_climb_segment_altitude_and_weight_monotonic(MACH, ALT):
     print("Running: test_climb_segment_altitude_and_weight_monotonic with hardcoded values")
     ac = build_test_aircraft()
     climb = ClimbSegment(start_altitude_ft=0, end_altitude_ft=35000, schedule=0.78, num_steps=40)
-    result = climb.run(ac, start_weight_kg=75000)
+    result = climb.run(ac, convert.lb_to_kg(ac.gross_weight_lb))
 
     altitudes = [h["altitude_ft"] for h in result.history]
-    weights = [h["weight_kg"] for h in result.history]
+    weights = [h["weight_lb"] for h in result.history]
 
     assert altitudes == sorted(altitudes), print("Altitude must increase monotonically during climb.")
     assert weights == sorted(weights, reverse=True), print("Weight error.")
     assert result.fuel_burned_kg > 0, print("fuel burn error")
     assert abs(altitudes[-1] - 35000) < 1.0, print("Climb terminate altitude missed.")
 
-def test_climb_rate_of_climb_decreases_with_altitude():
+def test_climb_rate_of_climb_decreases_with_altitude(MACH, ALT):
     print("Running: test_climb_rate_of_climb_decreases_with_altitude with hardcoded values")
     ac = build_test_aircraft()
     climb = ClimbSegment(start_altitude_ft=0, end_altitude_ft=35000, schedule=0.78, num_steps=40)
-    result = climb.run(ac, start_weight_kg=75000.0)
+    result = climb.run(ac, convert.lb_to_kg(ac.gross_weight_lb))
 
     roc_start = result.history[0]["rate_of_climb_fpm"]
     roc_end = result.history[-1]["rate_of_climb_fpm"]
@@ -114,14 +151,14 @@ def test_climb_rate_of_climb_decreases_with_altitude():
         f"start={roc_start:.0f} fpm, end={roc_end:.0f} fpm")
     )
 
-def test_descent_segment_altitude_and_weight_monotonic():
+def test_descent_segment_altitude_and_weight_monotonic(MACH, ALT):
     print("Running: test_descent_segment_altitude_and_weight_monotonic with hardcoded values")
     ac = build_test_aircraft()
     descent = DescentSegment(start_altitude_ft=35000, end_altitude_ft=1500, schedule=0.6, num_steps=40)
-    result = descent.run(ac, start_weight_kg=65000)
+    result = descent.run(ac, convert.lb_to_kg(ac.gross_weight_lb))
 
     altitudes = [h["altitude_ft"] for h in result.history]
-    weights = [h["weight_kg"] for h in result.history]
+    weights = [h["weight_lb"] for h in result.history]
 
     assert altitudes == sorted(altitudes, reverse=True), print("Altitude must decrease monotonically during descent.")
     assert weights == sorted(weights, reverse=True), print("Weight error.")
@@ -132,14 +169,12 @@ def test_descent_segment_altitude_and_weight_monotonic():
 if __name__ == "__main__":
     MACH = 0.78
     ALT = 20000
-    start_weight_kg = 75000 # kg
-    steps = 40
     
     print("Climb/Descent Function Tests")
     print("!!! Any other comment besides 'Running: ' means errors have occured !!!")
-    test_climb_gamma_residual(MACH, ALT, start_weight_kg)
-    test_descent_gamma_residual(MACH, ALT, start_weight_kg)
-    test_climb_above_ceiling()
-    test_climb_segment_altitude_and_weight_monotonic()
-    test_climb_rate_of_climb_decreases_with_altitude()
-    test_descent_segment_altitude_and_weight_monotonic()
+    test_climb_gamma_residual(MACH, ALT)
+    test_descent_gamma_residual(MACH, ALT)
+    test_climb_above_ceiling(MACH, ALT)
+    test_climb_segment_altitude_and_weight_monotonic(MACH, ALT)
+    test_climb_rate_of_climb_decreases_with_altitude(MACH, ALT)
+    test_descent_segment_altitude_and_weight_monotonic(MACH, ALT)

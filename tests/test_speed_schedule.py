@@ -24,14 +24,18 @@ def build_test_aircraft() -> Aircraft:
         name                        = "Test Aircraft",
         wing_area_ft2               = 1320,
         operating_empty_weight_lb   = 92500,
-        aero_model = SimpleDragPolar(
+        payload_weight_lb           = 33000,
+        fuel_weight_lb              = 40000,
+        aero_model=SimpleDragPolar(
             cd0                 = 0.020, 
             aspect_ratio        = 9.5, 
-            oswald_efficiency   = 0.80),
-        propulsion_model = SimpleTurbofan(
-            sea_level_thrust_n  = 120000, 
-            tsfc_kg_per_n_per_s = 1.75e-5, 
-            num_engines         = 2),
+            oswald_efficiency   = 0.80
+        ),
+        propulsion_model=SimpleTurbofan(
+            sea_level_thrust_lbf= 27000,
+            tsfc_lb_per_lbfhr   = 0.62,
+            num_engines         = 2
+        ),
     )
 
 # --- CAS/Mach conversion tests ---
