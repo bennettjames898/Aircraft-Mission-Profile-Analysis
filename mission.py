@@ -55,11 +55,13 @@ class MissionResult:
         self.summary = summary
         
         # build the time history file of the mission - TODO
+        timehistory, fnameTH = self.buildTimeHistory()
         
         # display and print if desired 
         if self.saveDir is not None:
             print(summary)
             self.writeFile(fnameSum,summary)
+            self.writeFile(fnameTH,timehistory)
             
     def buildSummary(self) -> str:
         # Collect aero input values
@@ -88,10 +90,16 @@ class MissionResult:
             f"Internal Fuel [lb]: {self.aircraft.fuel_weight_lb}",
             f"Gross Weight [lb]:  {self.aircraft.gross_weight_lb}",
             ]
-        lines.append(f"{'Mission summary':^84}")
-        lines.append("." * 84)
-        lines.append(f"{'Segment Name':<12}{'Time (min)':>16}{'Dist (nm)':>16}{'Fuel (lb)':>20}{'Gross Weight (lb)':>20}")
-        lines.append(f"{'':^12}{'Seg':>8}{'Total':>8}{'Seg':>8}{'Total':>8}{'Seg':>10}{'Total':>10}{'':>20}")
+        lines.append(f"{'Mission summary':^112}")
+        lines.append("." * 112)
+        lines.append(
+            f"{'Segment Name':<12}{'Time (min)':>16}{'Dist (nm)':>16}{'Fuel (lb)':>20}{'Gross Wt. (lb)':>16}"
+            f"{'Altitude (ft)':>16}{'Mach Number':>16}"
+        )
+        lines.append(
+            f"{'':^12}{'Seg':>8}{'Total':>8}{'Seg':>8}{'Total':>8}{'Seg':>10}{'Total':>10}{'':>16}"
+            f"{'Start':>8}{'End':>8}{'Start':>8}{'End':>8}"
+        )
         
         # Summary table of mission segments
         runTime = 0
@@ -106,12 +114,14 @@ class MissionResult:
                 f"{seg.time_s/60:>8.1f}{runTime:>8.1f}" # Time
                 f"{seg.distance_nm:>8.1f}{runDist:>8.1f}" # Distance
                 f"{convert.kg_to_lb(seg.fuel_burned_kg):>10.1f}{runFuel:>10.1f}" # Fuel
-                f"{convert.kg_to_lb(seg.end_weight_kg):>20.1f}" # Gross Weight
+                f"{convert.kg_to_lb(seg.end_weight_kg):>16.1f}" # Gross Weight
+                f"{seg.start_altitude_ft:>8.1f}{seg.end_altitude_ft:>8.1f}" # Altitude
+                f"{seg.history[0]['mach']:>8.3f}{seg.history[-1]['mach']:>8.3f}" # Mach
             )
-        lines.append("-" * 84)
+        lines.append("-" * 112)
         lines.append(
             f"{'TOTAL':<12}{self.total_time_s/60:>16.1f}{self.total_distance_nm:>16.1f}"
-            f"{self.total_fuel_burned_lb:>20.1f}{self.end_weight_lb:>20.1f}"
+            f"{self.total_fuel_burned_lb:>20.1f}{self.end_weight_lb:>16.1f}"
             f"{self.missionSuccess[0]}"
         )
         
@@ -119,12 +129,50 @@ class MissionResult:
         sumOutTab = "\n".join(lines)
         summaryOut = sumOutAero+sumOutProp+sumOutTab
         fnameSum = "MssnSum_"+self.aircraft.name.replace(" ","-")+".txt"
-        
         return summaryOut, fnameSum
             
+    def buildTimeHistory(self) -> str:
+               
+        # column headers
+        lines = [
+            f"{'Seg':<12}"                                  # Segment name
+            f"{'Seg Time [min]':>16}{'Run Time [min]':>16}" # Time
+            f"{'Seg Dist [nm]':>16}{'Run Dist [nm]':>16}"   # Distance
+            f"{'Seg Fuel [lb]':>16}{'Run Fuel [lb]':>16}"   # Fuel
+            f"{'Gross Wt [lb]':>16}"                        # Gross Weight
+            f"{'Alt [ft]':>10}{'Mach':>8}{'KTAS':>8}{'KCAS':>8}" # Altitude and Speeds
+            f"{'FN/eng [lb]':>10}{'Drag [lb]':>10}{'Fuel FLow [lb/hr]':>18}" # FN, Drag, WFtotal
+            f"{'Ps Pot. [fpm]':>14}"
+        ]
+        
+        runTime = 0
+        runDist = 0
+        runFuel = 0
+        for seg in self.segment_results:
+            for ii, segTH in enumerate(seg.history):
+                runTime = runTime + segTH['time_min']
+                runDist = runDist + segTH['distance_nm']
+                runFuel = runFuel + segTH['Fuel_burn_lb']
+                lines.append(
+                    f"{seg.segment_name:<12}" # segment name
+                    f"{segTH['time_min']:>16.1f}{runTime:>16.1f}" # Time
+                    f"{segTH['distance_nm']:>16.1f}{runDist:>16.1f}" # Distance
+                    f"{segTH['Fuel_burn_lb']:>16.1f}{runFuel:>16.1f}" # Fuel
+                    f"{segTH['weight_lb']:>16.1f}" # Gross Weight
+                    f"{segTH['altitude_ft']:>10.1f}{segTH['mach']:>8.4f}{segTH['tas_kt']:>8.1f}" # ALT / Mach / KTAS
+                    f"{convert.ms_to_kt(convert.mach_to_cas(segTH['mach'], convert.ft_to_m(segTH['altitude_ft']),self.aircraft.DISAC)):>8.1f}" # KCAS
+                    f"{segTH['thrust_lb']/self.aircraft.propulsion_model.num_engines:10.1f}"f"{segTH['drag_lb']:10.1f}"f"{segTH['fuel_flow_lbphr']:18.1f}"
+                    f"{segTH['Ps_theor_fpm']:14.1f}"
+                )
+                
+        # build text file
+        timeHistoryOut = "\n".join(lines)
+        fnameTH = "MssnTimeHist_"+self.aircraft.name.replace(" ","-")+".txt"
+        return timeHistoryOut, fnameTH
+    
     def writeFile(self,filename,text):
         with open(self.saveDir+"\\"+filename,"w") as file:
-            print("Writing Mission Summary...")
+            print("Writing "+filename+"...")
             for line in text:
                 file.write(line)
 

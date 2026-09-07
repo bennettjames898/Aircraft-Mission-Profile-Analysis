@@ -24,6 +24,21 @@ def m_to_nm(m: float) -> float:
     return m / 1852
 
 ###############################################################################
+# ------------------------- Temperature Conversions ---------------------------
+###############################################################################
+def DISAF_to_C(DISAF: float) -> float:
+    """
+    Convert Delta ISA conditions in degF to delta ISA condition in DegC/K
+    """
+    return DISAF * (5/9)
+
+def DISAC_to_F(DISAC: float) -> float:
+    """
+    Convert Delta ISA conditions in degC/K to delta ISA condition in DegF
+    """
+    return DISAC * (9/5)
+
+###############################################################################
 # ------------------------- Mass/Weight Conversions ---------------------------
 ###############################################################################
 G0 = 9.80665  # m/s^2

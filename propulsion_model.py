@@ -56,10 +56,10 @@ class SimpleTurbofan(PropulsionModelBase):
         self.idle_thrust_fraction   = idle_thrust_fraction # % of max thrust for idle approximation
         self.inputs                 = self.__dict__ # collect input terms for output files
 
-    def max_thrust(self, altitude_m: float, mach: float) -> float:
+    def max_thrust(self, altitude_m: float, mach: float, DISAC: float = 0) -> float:
         from atmosphere import isa_conditions, RHO0
 
-        rho = isa_conditions(altitude_m)["density_kg_m3"]
+        rho = isa_conditions(altitude_m, DISAC)["density_kg_m3"]
         density_ratio = rho / RHO0
 
         # Mild Mach correction: thrust drops off slightly with increasing
@@ -71,8 +71,8 @@ class SimpleTurbofan(PropulsionModelBase):
         )
         return self.num_engines * thrust_per_engine
 
-    def idle_thrust(self, altitude_m: float, mach: float) -> float:
-        return self.idle_thrust_fraction * self.max_thrust(altitude_m, mach)
+    def idle_thrust(self, altitude_m: float, mach: float, DISAC: float = 0) -> float:
+        return self.idle_thrust_fraction * self.max_thrust(altitude_m, mach, DISAC)
 
     def fuel_flow(self, thrust_n: float, altitude_m: float, mach: float) -> float:
         # Simplification: Constant TSFC model: fuel flow scales linearly with thrust.
@@ -87,10 +87,11 @@ if __name__ == "__main__":
         tsfc_lb_per_lbfhr    = 0.62,   # ~0.62 lb/lbf/hr, typical turbofan cruise TSFC
         num_engines          = 2,
     )
+    DISAF = 0 # Delta standard conditions in degF
 
     print(f"{'Alt (ft)':>10} {'Mach':>6} {'Max Thrust (N)':>16} {'Fuel Flow (kg/s)':>18}")
     for alt_ft, mach in [(0, 0.3), (35000, 0.78), (39000, 0.78)]:
         alt_m   = convert.ft_to_m(alt_ft)
-        t_max   = engine.max_thrust(alt_m, mach) # N
+        t_max   = engine.max_thrust(alt_m, mach, convert.DISAF_to_C(DISAF)) # N
         WF      = engine.fuel_flow(t_max, alt_m, mach) # kg/s
         print(f"{alt_ft:>10} {mach:>6.2f} {t_max:>16.1f} {WF:>18.4f}")

@@ -120,15 +120,11 @@ independently-derivable reference in the corresponding test or
   between a ClimbSegment and a CruiseSegment).
 
 ## Future Work
-- [ ] Separate class definition for mass properties (currently in `aero_model.py` 
-      or defined in an example run script)
-- [ ] Improved outputting & plot generation (currently ad hoc, no file saving)
-- [ ] Functionality for radius profiles (outbound and inbound segments)
+- [ ] Improved outputting & plot generation (currently ad hoc plotting)
 - [ ] Functionality for Mission-level fuel sizing: 
-		iteration that guesses takeoff fuel weight and converges when 
-		required reserves are met — layered on top of `Mission.run()` 
-		without modifying it.		
-- [ ] Add a best cruise altitude (BCA) cruise mission segment
+		iteration that guesses initiqal fuel weight and converges when 
+		reserves are met (similar to range root-find).
+- [ ] Add a level flight accel./decel. mission segment
 - [ ] Create an implementation of `AeroModelBase` / `PropulsionModelBase`, to
       read in table data from an outside source (i.e. DATCOM) to demonstrate 
 	  knowledge of iterpolated data handling.

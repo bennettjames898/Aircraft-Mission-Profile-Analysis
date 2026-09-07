@@ -14,7 +14,17 @@ import unit_conversions as convert
 
 @dataclass
 class Aircraft:    
-    def __init__(self, name: str, wing_area_ft2: float, operating_empty_weight_lb: float, payload_weight_lb: float, fuel_weight_lb: float, aero_model: AeroModelBase, propulsion_model: PropulsionModelBase):
+    def __init__(
+            self, 
+            name: str, 
+            wing_area_ft2: float, 
+            operating_empty_weight_lb: float, 
+            payload_weight_lb: float, 
+            fuel_weight_lb: float, 
+            aero_model: AeroModelBase, 
+            propulsion_model: PropulsionModelBase,
+            DISAF: float = 0,
+        ):
         self.name = name
         self.wing_area_m2 = wing_area_ft2 * convert.ft_to_m(1)**2
         self.operating_empty_weight_lb = operating_empty_weight_lb
@@ -22,6 +32,7 @@ class Aircraft:
         self.fuel_weight_lb = fuel_weight_lb
         self.aero_model = aero_model
         self.propulsion_model = propulsion_model
+        self.DISAC = DISAF*5/9 # carry DISAC
         
         # mass props buildup
         self.zero_fuel_weight_lb = self.operating_empty_weight_lb + self.payload_weight_lb
@@ -34,7 +45,7 @@ class Aircraft:
     # CL required for level, unaccelerated flight (L = W)
     def required_cl(self, weight_kg: float, altitude_m: float, mach: float) -> float:
         tas = convert.mach_to_tas(mach, altitude_m)
-        rho = isa_conditions(altitude_m)["density_kg_m3"]
+        rho = isa_conditions(altitude_m, self.DISAC)["density_kg_m3"]
         q = 0.5 * rho * tas ** 2
         weight = self.weight_n(weight_kg)
         return self.aero_model.cl_for_lift(weight, q, self.wing_area_m2)
@@ -44,7 +55,7 @@ class Aircraft:
         cl = self.required_cl(weight_kg, altitude_m, mach)
         cd = self.aero_model.get_cd(cl, mach)
         tas = convert.mach_to_tas(mach, altitude_m)
-        rho = isa_conditions(altitude_m)["density_kg_m3"]
+        rho = isa_conditions(altitude_m, self.DISAC)["density_kg_m3"]
         q = 0.5 * rho * tas ** 2
         return cd * q * self.wing_area_m2
 

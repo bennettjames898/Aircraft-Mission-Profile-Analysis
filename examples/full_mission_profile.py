@@ -31,20 +31,22 @@ def main():
     ### Aircraft Definition
     aircraft = Aircraft(
         name                        = "Test Airliner",
-        wing_area_ft2               = 1320,
-        operating_empty_weight_lb   = 92500,        
-        payload_weight_lb           = 33000,
-        fuel_weight_lb              = 40000,
+        wing_area_ft2               = 4058,
+        operating_empty_weight_lb   = 264500,        
+        payload_weight_lb           = 90500,
+        fuel_weight_lb              = 223000,
         aero_model=SimpleDragPolar(
             cd0                 = 0.020,
-            aspect_ratio        = 9.5, 
-            oswald_efficiency   = 0.80
+            aspect_ratio        = 9.59, 
+            oswald_efficiency   = 0.9,
+            mach_crit           = 0.86,
         ),
         propulsion_model=SimpleTurbofan(
-            sea_level_thrust_lbf    = 27000,
+            sea_level_thrust_lbf    = 64000,
             tsfc_lb_per_lbfhr       = 0.62,
             num_engines             = 2,
         ),
+        DISAF = 0,
     )
 
     ### Climb and Descent Schedule Definition
@@ -60,7 +62,7 @@ def main():
         ClimbSegment(start_altitude_ft=1500, end_altitude_ft=35000, schedule=climb_sched, num_steps=100),
         ConstantAltCruiseSegment(altitude_ft=35000, mach=0.78, range_nm=1200, num_steps=200),
         DescentSegment(start_altitude_ft=35000, end_altitude_ft=1500, schedule=descent_sched, num_steps=100),
-        LoiterSegment(altitude_ft=1500, mach=0.3, duration_min=20.0, num_steps=200),
+        LoiterSegment(altitude_ft=1500, mach=0.3, duration_min=20.0, num_steps=100),
     ]
 
     ### BUILD & RUN a noniterative mission @ aircraft.gross_weight_lb

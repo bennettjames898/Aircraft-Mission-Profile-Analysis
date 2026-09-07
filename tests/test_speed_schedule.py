@@ -36,6 +36,7 @@ def build_test_aircraft() -> Aircraft:
             tsfc_lb_per_lbfhr   = 0.62,
             num_engines         = 2
         ),
+        DISAF=0,
     )
 
 # --- CAS/Mach conversion tests ---

@@ -71,6 +71,8 @@ def isa_conditions(altitude_m: float, delta_isa: float = 0.0) -> dict:
     speed_of_sound_m_s = math.sqrt(GAMMA * R_AIR * temperature_K)
 
     return {
+        "temperature_F": temperature_K-459.67,
+        "temperature_C": temperature_K-273.15,
         "temperature_K": temperature_K,
         "pressure_Pa": pressure_Pa,
         "density_kg_m3": density_kg_m3,
@@ -81,9 +83,10 @@ def isa_conditions(altitude_m: float, delta_isa: float = 0.0) -> dict:
 if __name__ == "__main__":
     # check against known ISA table values
     test_altitudes_ft = [0, 10000, 36089, 40000]
+    DISAF = 45
     print(f"{'Alt (ft)':>10} {'Temp (K)':>10} {'Press (Pa)':>12} {'Rho (kg/m3)':>12} {'a (m/s)':>10}")
     for alt_ft in test_altitudes_ft:
-        c = isa_conditions(convert.ft_to_m(alt_ft))
+        c = isa_conditions(convert.ft_to_m(alt_ft),convert.DISAF_to_C(DISAF))
         print(
             f"{alt_ft:>10} {c['temperature_K']:>10.2f} {c['pressure_Pa']:>12.1f} "
             f"{c['density_kg_m3']:>12.4f} {c['speed_of_sound_m_s']:>10.2f}"

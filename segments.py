@@ -6,7 +6,7 @@ aircraft weight, so segments can be chained by Mission (see mission.py).
 """
 
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional, Tuple
 
 import unit_conversions as convert
 from aircraft_build import Aircraft
@@ -23,9 +23,15 @@ class SegmentResult:
     time_s:             float
     # Fine-grained trace for plotting: one entry per integration step
     history: List[dict] = field(default_factory=list)
+    # Altitude the segment started/ended at.
+    start_altitude_ft: Optional[float] = None
+    end_altitude_ft: Optional[float] = None
 
 # Base class. Subclasses implement run().
 class MissionSegment:
+    """
+    Base class. Subclasses implement 'run()' specific for the flight segment.
+    """
     name = "generic_segment"
     def run(self, aircraft: Aircraft, start_weight_kg: float) -> SegmentResult:
         raise NotImplementedError
@@ -42,31 +48,30 @@ class GroundOps(MissionSegment):
         
     def run(self, aircraft: Aircraft, start_weight_kg: float) -> SegmentResult:
         weight_kg   = start_weight_kg
-        time_s      = 0
-        
-        history = [{
-            "time_min":     time_s/60,
-            "distance_nm":  0,
-            "weight_lb":    convert.kg_to_lb(weight_kg),
-            "altitude_ft":  0,
-            "mach":         0,
-            "tas_kt":       0,
-        }]
         
         maxFn = aircraft.propulsion_model.max_thrust(0, 0)
         minFn = aircraft.propulsion_model.idle_thrust(0, 0)
         thrust_n = ((maxFn-minFn)*self.throttle_set_pct)+minFn
         fuel_flow_kg_s = aircraft.propulsion_model.fuel_flow(thrust_n, 0, 0)
+        
         weight_kg = weight_kg - fuel_flow_kg_s*self.duration_s
-
-        history = [{
+        
+        history=[]
+        history.append({
             "time_min":     self.duration_s/60,
             "distance_nm":  0,
             "weight_lb":    convert.kg_to_lb(weight_kg),
             "altitude_ft":  0,
             "mach":         0,
             "tas_kt":       0,
-        }]
+            "thrust_lb":    convert.kg_to_lb(thrust_n/convert.G0),
+            "fuel_flow_lbphr": convert.kg_to_lb(fuel_flow_kg_s)*3600,
+            "Fuel_burn_lb": convert.kg_to_lb(start_weight_kg - weight_kg),
+            # "l_over_d":     aircraft.lift_to_drag(weight_kg, self.altitude_m, self.mach),
+            "drag_lb":      0,
+            "Ps_theor_fpm": 0,
+            "gamma_deg":    0,
+        })
         
         return SegmentResult(
             segment_name    = self.name,
@@ -76,6 +81,8 @@ class GroundOps(MissionSegment):
             distance_nm     = 0,
             time_s          = self.duration_s,
             history         = history,
+            start_altitude_ft=0,
+            end_altitude_ft=0,
         )
 
 class ConstantAltCruiseSegment(MissionSegment):
@@ -85,9 +92,12 @@ class ConstantAltCruiseSegment(MissionSegment):
     weight-vs-distance ODE:
 
         dW/dx = -g * TSFC_effective / V   (Breguet's differential form)
+                                           
+   `altitude_ft` can be left as 'None' to defer the previous segment end alt 
+   (see MissionSegment.needs_start_altitude).
     """
     name = "cruise"
-    def __init__(self, altitude_ft: float, mach: float, range_nm: float, num_steps: int = 100):
+    def __init__(self, mach: float, range_nm: float, altitude_ft: float, num_steps: int = 100):
         self.altitude_m = convert.ft_to_m(altitude_ft)
         self.mach       = mach
         self.range_m    = convert.nm_to_m(range_nm)
@@ -103,31 +113,15 @@ class ConstantAltCruiseSegment(MissionSegment):
     def run(self, aircraft: Aircraft, start_weight_kg: float) -> SegmentResult:
         dx          = self.range_m / self.num_steps
         weight_kg   = start_weight_kg
-        distance_m  = 0.0
-        time_s      = 0.0
+        distance_m  = 0
+        time_s      = 0
         tas         = convert.mach_to_tas(self.mach, self.altitude_m)
         
-        fuel_flow_kg_s = -self._dW_dx(aircraft, weight_kg)*tas
-        fn_reqd = aircraft.thrust_required_n(weight_kg, self.altitude_m, self.mach)
-        
-        fn_max = aircraft.propulsion_model.max_thrust(self.altitude_m, self.mach)
-        drag_n = aircraft.drag_n(weight_kg, self.altitude_m, self.mach)
-        Ps = (fn_max - drag_n)/weight_kg*convert.G0*tas
-        
-        history = [{
-            "time_min":     time_s/60,
-            "distance_nm":  convert.m_to_nm(distance_m),
-            "weight_lb":    convert.kg_to_lb(weight_kg),
-            "altitude_ft":  convert.m_to_ft(self.altitude_m),
-            "mach":         self.mach,
-            "tas_kt":       convert.ms_to_kt(tas),
-            "thrust_lb":    convert.kg_to_lb(fn_reqd/convert.G0),
-            "fuel_flow_lbphr": convert.kg_to_lb(fuel_flow_kg_s)/3600,
-            "l_over_d":     aircraft.lift_to_drag(weight_kg, self.altitude_m, self.mach),
-            "Ps_theor_fpm": convert.ms_to_fts(Ps)/60,
-        }]
-
+        history=[]
         for _ in range(self.num_steps):
+            tprev = time_s
+            dprev = distance_m
+            wprev = weight_kg
             # RK4 steps on dW/dx
             k1 = self._dW_dx(aircraft, weight_kg)
             k2 = self._dW_dx(aircraft, weight_kg + 0.5 * dx * k1)
@@ -138,24 +132,30 @@ class ConstantAltCruiseSegment(MissionSegment):
             distance_m  += dx
             time_s      += dx / tas
             
-            fuel_flow_kg_s = -self._dW_dx(aircraft, weight_kg)*tas
+            # Thrust & Fuel
+            fuel_flow_kg_s = -k1*tas
             fn_reqd = aircraft.thrust_required_n(weight_kg, self.altitude_m, self.mach)
+            fuel_weight_kg = wprev-weight_kg
             
+            # Theoretical Ps calculation
             fn_max = aircraft.propulsion_model.max_thrust(self.altitude_m, self.mach)
             drag_n = aircraft.drag_n(weight_kg, self.altitude_m, self.mach)
-            Ps = (fn_max - drag_n)/weight_kg*convert.G0*tas
+            Ps = (fn_max - drag_n)/(weight_kg*convert.G0)*tas
 
             history.append({
-                "time_min":     time_s/60,
-                "distance_nm":  convert.m_to_nm(distance_m),
+                "time_min":     (time_s-tprev)/60,
+                "distance_nm":  convert.m_to_nm(distance_m-dprev),
                 "weight_lb":    convert.kg_to_lb(weight_kg),
                 "altitude_ft":  convert.m_to_ft(self.altitude_m),
                 "mach":         self.mach,
                 "tas_kt":       convert.ms_to_kt(tas),
                 "thrust_lb":    convert.kg_to_lb(fn_reqd/convert.G0),
-                "fuel_flow_lbphr": convert.kg_to_lb(fuel_flow_kg_s)/3600,
-                "l_over_d":     aircraft.lift_to_drag(weight_kg, self.altitude_m, self.mach),
-                "Ps_theor_fpm": convert.ms_to_fts(Ps)/60,
+                "fuel_flow_lbphr": convert.kg_to_lb(fuel_flow_kg_s)*3600,
+                "Fuel_burn_lb":  convert.kg_to_lb(fuel_weight_kg),
+                # "l_over_d":     aircraft.lift_to_drag(weight_kg, self.altitude_m, self.mach),
+                "drag_lb":      convert.kg_to_lb(aircraft.drag_n(weight_kg, self.altitude_m, self.mach)/convert.G0),
+                "Ps_theor_fpm": convert.ms_to_fts(Ps)*60,
+                "gamma_deg": 0,
             })
 
         return SegmentResult(
@@ -166,6 +166,8 @@ class ConstantAltCruiseSegment(MissionSegment):
             distance_nm     = convert.m_to_nm(distance_m),
             time_s          = time_s,
             history         = history,
+            start_altitude_ft=convert.m_to_ft(self.altitude_m),
+            end_altitude_ft=convert.m_to_ft(self.altitude_m),
         )
 
 class LoiterSegment(MissionSegment):
@@ -174,7 +176,7 @@ class LoiterSegment(MissionSegment):
     Same ODE as cruise but integrated over time.
     """
     name = "loiter"
-    def __init__(self, altitude_ft: float, mach: float, duration_min: float, num_steps: int = 100):
+    def __init__(self, mach: float, duration_min: float, altitude_ft: float, num_steps: int = 100):
         self.altitude_m = convert.ft_to_m(altitude_ft)
         self.mach       = mach
         self.duration_s = duration_min * 60
@@ -184,33 +186,15 @@ class LoiterSegment(MissionSegment):
     def _dW_dt(self, aircraft: Aircraft, weight_kg: float) -> float:
         return -aircraft.fuel_flow_kg_s(weight_kg, self.altitude_m, self.mach)
 
-    def run(self, aircraft: Aircraft, start_weight_kg: float) -> SegmentResult:
+    def run(self, aircraft: Aircraft, start_weight_kg: float) -> SegmentResult:            
         dt          = self.duration_s / self.num_steps
         weight_kg   = start_weight_kg
         time_s      = 0.0
         tas         = convert.mach_to_tas(self.mach, self.altitude_m)
-        
-        fuel_flow_kg_s = -self._dW_dt(aircraft, weight_kg)*tas
-        fn_reqd = aircraft.thrust_required_n(weight_kg, self.altitude_m, self.mach)
-        
-        fn_max = aircraft.propulsion_model.max_thrust(self.altitude_m, self.mach)
-        drag_n = aircraft.drag_n(weight_kg, self.altitude_m, self.mach)
-        Ps = (fn_max - drag_n)/weight_kg*convert.G0*tas
 
-        history = [{
-            "time_min":     0, 
-            "distance_nm":  0,
-            "weight_lb":    convert.kg_to_lb(weight_kg),
-            "altitude_ft":  convert.m_to_ft(self.altitude_m),
-            "mach":         self.mach,
-            "tas_kt":       convert.ms_to_kt(tas),
-            "thrust_lb":    convert.kg_to_lb(fn_reqd/convert.G0),
-            "fuel_flow_lbphr": convert.kg_to_lb(fuel_flow_kg_s)/3600,
-            "l_over_d":     aircraft.lift_to_drag(weight_kg, self.altitude_m, self.mach),
-            "Ps_theor_fpm": convert.ms_to_fts(Ps)/60,
-            }]
-
+        history=[]
         for _ in range(self.num_steps):
+            wprev = weight_kg
             # RK4 steps over dW/dt
             k1 = self._dW_dt(aircraft, weight_kg)
             k2 = self._dW_dt(aircraft, weight_kg + 0.5 * dt * k1)
@@ -219,24 +203,29 @@ class LoiterSegment(MissionSegment):
             weight_kg   += (dt / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
             time_s      += dt
             
-            fuel_flow_kg_s = -self._dW_dt(aircraft, weight_kg)*tas
+            # Thrust & Fuel
             fn_reqd = aircraft.thrust_required_n(weight_kg, self.altitude_m, self.mach)
+            fuel_weight_kg = wprev-weight_kg
             
+            # Theoretical Ps calculation
             fn_max = aircraft.propulsion_model.max_thrust(self.altitude_m, self.mach)
             drag_n = aircraft.drag_n(weight_kg, self.altitude_m, self.mach)
-            Ps = (fn_max - drag_n)/weight_kg*convert.G0*tas
+            Ps = (fn_max - drag_n)/(weight_kg*convert.G0)*tas
             
             history.append({
-                "time_min":     time_s/60, 
+                "time_min":     (dt)/60, 
                 "distance_nm":  0,
                 "weight_lb":    convert.kg_to_lb(weight_kg),
                 "altitude_ft":  convert.m_to_ft(self.altitude_m),
                 "mach":         self.mach,
                 "tas_kt":       convert.ms_to_kt(tas),
                 "thrust_lb":    convert.kg_to_lb(fn_reqd/convert.G0),
-                "fuel_flow_lbphr": convert.kg_to_lb(fuel_flow_kg_s)/3600,
-                "l_over_d":     aircraft.lift_to_drag(weight_kg, self.altitude_m, self.mach),
-                "Ps_theor_fpm": convert.ms_to_fts(Ps)/60,
+                "fuel_flow_lbphr": convert.kg_to_lb(-k1)*3600,
+                "Fuel_burn_lb":  convert.kg_to_lb(fuel_weight_kg),
+                # "l_over_d":     aircraft.lift_to_drag(weight_kg, self.altitude_m, self.mach),
+                "drag_lb":      convert.kg_to_lb(aircraft.drag_n(weight_kg, self.altitude_m, self.mach)/convert.G0),
+                "Ps_theor_fpm": convert.ms_to_fts(Ps)*60,
+                "gamma_deg": 0,
                 })
 
         return SegmentResult(
@@ -247,6 +236,8 @@ class LoiterSegment(MissionSegment):
             distance_nm     = 0.0,
             time_s          = time_s,
             history         = history,
+            start_altitude_ft=convert.m_to_ft(self.altitude_m),
+            end_altitude_ft=convert.m_to_ft(self.altitude_m),
         )
     
 class CommonGammaSegment(MissionSegment):
@@ -265,8 +256,15 @@ class CommonGammaSegment(MissionSegment):
     together with RK4.
     """
 
-    def __init__(self, start_altitude_ft: float, end_altitude_ft: float, schedule, 
-                 num_steps: int = 100, gamma_min_deg: float = 0.05, gamma_max_deg: float = 25):
+    def __init__(
+            self, 
+            start_altitude_ft: float, 
+            end_altitude_ft: float, 
+            schedule, 
+            num_steps: int = 100, 
+            gamma_min_deg: float = 0.05, 
+            gamma_max_deg: float = 25
+        ):
         self.start_altitude_m = convert.ft_to_m(start_altitude_ft)
         self.end_altitude_m = convert.ft_to_m(end_altitude_ft)
         self.schedule = speed_schedule.as_schedule(schedule)
@@ -303,6 +301,10 @@ class CommonGammaSegment(MissionSegment):
             )
 
         fuel_flow_kg_s = aircraft.propulsion_model.fuel_flow(thrust_n, altitude_m, mach)
+        
+        fn_max = aircraft.propulsion_model.max_thrust(altitude_m, mach)
+        drag_n = aircraft.drag_n(weight_kg, altitude_m, mach)
+        Ps = (fn_max - drag_n)/(weight_kg*convert.G0)*tas
 
         return {
             "dt_dh":        1 / rate_of_climb,
@@ -313,6 +315,7 @@ class CommonGammaSegment(MissionSegment):
             "mach":         mach,
             "ka":           ka,
             "roc_ms":       rate_of_climb,
+            "Ps_theor_ms": Ps,
             "fuel_flow_kg_s": fuel_flow_kg_s,
             "thrust_n":     thrust_n,
         }
@@ -328,23 +331,15 @@ class CommonGammaSegment(MissionSegment):
         weight_kg   = start_weight_kg
         time_s      = 0.0
         distance_m  = 0.0
-        d0          = self._derivatives(aircraft, altitude_m, weight_kg)
-        history     = [{
-            "time_min":             0, 
-            "distance_nm":          0.0,
-            "weight_lb":            convert.kg_to_lb(weight_kg),
-            "altitude_ft":          convert.m_to_ft(altitude_m),
-            "mach":                 d0["mach"],
-            "tas_kt":               convert.ms_to_kt(d0["tas"]),
-            "thrust_lb":            convert.kg_to_lb(d0["thrust_n"]/convert.G0),
-            "fuel_flow_lbphr":      convert.kg_to_lb(d0["fuel_flow_kg_s"])/3600,
-            "gamma_deg":            math.degrees(d0["gamma_rad"]),
-            "rate_of_climb_fpm":    convert.ms_to_fts(d0["tas"] * math.sin(d0["gamma_rad"]))/60,
-            "ka":                   d0["ka"],
-        }]
-
+        history=[]
+        
         # Calculate weight time and distance across the segment
         for _ in range(self.num_steps):
+            tprev = time_s
+            dprev = distance_m
+            wprev = weight_kg
+            
+            # RK4 over altitude
             k1 = self._derivatives(aircraft, altitude_m, weight_kg)
             k2 = self._derivatives(aircraft, altitude_m + 0.5 * dh, weight_kg + 0.5 * dh * k1["dW_dh"])
             k3 = self._derivatives(aircraft, altitude_m + 0.5 * dh, weight_kg + 0.5 * dh * k2["dW_dh"])
@@ -355,19 +350,25 @@ class CommonGammaSegment(MissionSegment):
             distance_m  += (dh / 6.0) * (k1["dx_dh"] + 2 * k2["dx_dh"] + 2 * k3["dx_dh"] + k4["dx_dh"])
             altitude_m  += dh
 
+            fuel_weight_kg = wprev-weight_kg
+
             d_end = self._derivatives(aircraft, altitude_m, weight_kg)
+            
             history.append({
-                "time_min":             time_s / 60,
-                "distance_nm":          convert.m_to_nm(distance_m),
+                "time_min":             (time_s-tprev) / 60,
+                "distance_nm":          convert.m_to_nm(distance_m-dprev),
                 "weight_lb":            convert.kg_to_lb(weight_kg),
                 "altitude_ft":          convert.m_to_ft(altitude_m),
                 "mach":                 d_end["mach"],
                 "tas_kt":               convert.ms_to_kt(d_end["tas"]),
                 "thrust_lb":            convert.kg_to_lb(d_end["thrust_n"]/convert.G0),
-                "fuel_flow_lbphr":      convert.kg_to_lb(d_end["fuel_flow_kg_s"])/3600,
+                "fuel_flow_lbphr":      convert.kg_to_lb(d_end["fuel_flow_kg_s"])*3600,
+                "Fuel_burn_lb":         convert.kg_to_lb(fuel_weight_kg),
                 "gamma_deg":            math.degrees(d_end["gamma_rad"]),
                 "rate_of_climb_fpm":    convert.ms_to_fts(d_end["tas"] * math.sin(d_end["gamma_rad"]))/60,
+                "Ps_theor_fpm":         convert.ms_to_fts(d_end["Ps_theor_ms"])*60,
                 "ka":                   d_end["ka"],
+                "drag_lb":              convert.kg_to_lb(aircraft.drag_n(weight_kg, altitude_m, d_end["mach"])/convert.G0)
             })
 
         return SegmentResult(
@@ -378,6 +379,8 @@ class CommonGammaSegment(MissionSegment):
             distance_nm     = convert.m_to_nm(distance_m),
             time_s          = time_s,
             history         = history,
+            start_altitude_ft = convert.m_to_ft(h0),
+            end_altitude_ft = convert.m_to_ft(altitude_m),
         )
     
 class ClimbSegment(CommonGammaSegment):
@@ -399,8 +402,16 @@ class ClimbSegment(CommonGammaSegment):
         return aircraft.propulsion_model.max_thrust(altitude_m, mach)
 
     def _solve_gamma(self, aircraft: Aircraft, weight_kg: float, altitude_m: float, mach: float, thrust_n: float, ka: float) -> float:
-        return solver_climb_descent.solve_climb_gamma(aircraft, weight_kg, altitude_m, mach, thrust_n,
-            gamma_min_deg=self.gamma_min_deg, gamma_max_deg=self.gamma_max_deg, ka=ka)
+        return solver_climb_descent.solve_climb_gamma(
+            aircraft, 
+            weight_kg, 
+            altitude_m, 
+            mach, 
+            thrust_n,
+            gamma_min_deg=self.gamma_min_deg, 
+            gamma_max_deg=self.gamma_max_deg, 
+            ka=ka
+        )
     
 class DescentSegment(CommonGammaSegment):
     """
@@ -415,5 +426,13 @@ class DescentSegment(CommonGammaSegment):
         return aircraft.propulsion_model.idle_thrust(altitude_m, mach)
 
     def _solve_gamma(self, aircraft: Aircraft, weight_kg: float, altitude_m: float, mach: float, thrust_n: float, ka: float) -> float:
-        return solver_climb_descent.solve_descent_gamma(aircraft, weight_kg, altitude_m, mach, thrust_n,
-            gamma_min_deg=self.gamma_min_deg, gamma_max_deg=self.gamma_max_deg, ka=ka)
+        return solver_climb_descent.solve_descent_gamma(
+            aircraft, 
+            weight_kg, 
+            altitude_m, 
+            mach, 
+            thrust_n,
+            gamma_min_deg=self.gamma_min_deg, 
+            gamma_max_deg=self.gamma_max_deg, 
+            ka=ka
+        )
