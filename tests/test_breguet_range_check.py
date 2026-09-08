@@ -117,14 +117,16 @@ def test_fuel_burn_is_positive_and_bounded():
     assert result.fuel_burned_kg < 70000.0, print("Cruise should not burn more fuel than available weight.")
     assert result.end_weight_kg < result.start_weight_kg, print("Weight must decrease during cruise.")
 
+# -----------------------------------------------------------------------------
 if __name__ == "__main__":
     print("Breguet Range Assessment - Method Comparison:")
     print("Step count | Numerical range (nm) | Breguet range (nm) | Error (%)")
     for n in [5, 10, 25, 50, 100, 200]:
         num_nm, breg_nm, err = run_case(num_steps=n)
-        print(f"{n:>10} | {num_nm:>20.3f} | {breg_nm:>18.3f} | {err:>8.5f}")
+        print(f"{n:>10} | {num_nm:>20.3f} | {breg_nm:>18.3f} | {err:>8.5f}%")
 
     test_breguet_agreement_coarse()
     test_breguet_agreement_fine()
     test_convergence_improves_with_steps()
     test_fuel_burn_is_positive_and_bounded()
+    print("All Breguet range alidation checks passed.")

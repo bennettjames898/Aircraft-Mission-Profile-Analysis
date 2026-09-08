@@ -18,7 +18,6 @@ from propulsion_model import SimpleTurbofan
 from aircraft_build import Aircraft
 from segments import ClimbSegment
 
-
 def build_test_aircraft() -> Aircraft:
     return Aircraft(
         name                        = "Test Aircraft",
@@ -40,9 +39,12 @@ def build_test_aircraft() -> Aircraft:
     )
 
 # --- CAS/Mach conversion tests ---
-def test_cas_mach_roundtrip(KCAS_list, ALT_list):
+def test_cas_mach_roundtrip():
     """mach_to_cas(cas_to_mach(v)) should return the original CAS to tight tolerance."""
     print("Running: test_cas_mach_roundtrip")
+    KCAS_list = [150, 200, 250, 280, 320]
+    ALT_list = [0, 10000, 25000, 35000] # FT
+    
     for cas_kt in KCAS_list:
         for alt_ft in ALT_list:
             cas_ms = convert.kt_to_ms(cas_kt)
@@ -53,16 +55,22 @@ def test_cas_mach_roundtrip(KCAS_list, ALT_list):
             assert error_kt < 0.01, print(f"CAS round-trip error too large: {error_kt:.4f} kt at {alt_ft} ft")
 
 # --- Schedule tests ---
-def test_constant_tas_schedule_zero_acceleration(KTAS, ALT):
+def test_constant_tas_schedule_zero_acceleration():
     """Check for proper dtas behavior during a TAS climb (should be 0)."""
     print("Running: test_constant_tas_schedule_zero_acceleration")
+    KTAS = 280
+    ALT = 20000
+    
     sched = ConstantTASSchedule(convert.kt_to_ms(KTAS))
     assert sched.dtas_dh(convert.ft_to_m(ALT)) == 0, print(f"TAS acceleration > 0: {sched.dtas_dh(convert.ft_to_m(ALT))}")
     assert sched.tas_at_altitude(convert.ft_to_m(ALT)) == convert.kt_to_ms(KTAS), print(f"TAS round-trip error too large: TAS @ ALT = {sched.tas_at_altitude(convert.ft_to_m(ALT)):.4f} | Input TAS = {convert.kt_to_ms(KTAS)}")
 
-def test_cas_mach_schedule_continuity_at_crossover(KCAS, MACH):
+def test_cas_mach_schedule_continuity_at_crossover():
     """The schedule's Mach must be continuous across the crossover
     altitude: Mach just below should equal the target Mach just above."""
+    MACH = 0.78
+    KCAS = 280
+    
     sched = CASMachSchedule(cas_m_s=convert.kt_to_ms(KCAS), mach=MACH)
     crossover_m = sched.crossover_altitude_m
 
@@ -74,9 +82,12 @@ def test_cas_mach_schedule_continuity_at_crossover(KCAS, MACH):
     )
     assert abs(mach_just_above - MACH) < 0.005
 
-def test_cas_mach_schedule_regimes(KCAS, MACH):
+def test_cas_mach_schedule_regimes():
     """Below crossover, schedule should follow CAS; above, constant Mach."""
     print("Running: test_cas_mach_schedule_regimes")
+    MACH = 0.78
+    KCAS = 280
+    
     sched = CASMachSchedule(cas_m_s=convert.kt_to_ms(KCAS), mach=MACH)
     crossover_ft = convert.m_to_ft(sched.crossover_altitude_m)
 
@@ -87,12 +98,19 @@ def test_cas_mach_schedule_regimes(KCAS, MACH):
     assert sched.mach_at_altitude(high_alt_m) == MACH, print("Mach Output mismatch to Mach Input")
 
 # --- Acceleration factor (ka) sanity checks ---
-def test_ka_deviates_from_one_under_cas_schedule(KCAS, MACH, ALT_lo, ALT_hi, start_weight, steps):
+def test_ka_deviates_from_one_under_cas_schedule():
     """
     Under a CAS schedule (TAS changing with altitude), the acceleration factor 
     ka should differ from 1.0.
     """
     print("Running: test_ka_deviates_from_one_under_cas_schedule")
+    MACH = 0.78
+    KCAS = 280
+    ALT_lo = 0 # FT
+    ALT_hi = 20000 # FT
+    start_weight = 75000 # kg
+    steps = 40
+    
     ac = build_test_aircraft()
     schedule = CASMachSchedule(cas_m_s=convert.kt_to_ms(KCAS), mach=MACH)
     climb = ClimbSegment(start_altitude_ft=ALT_lo, end_altitude_ft=ALT_hi, schedule=schedule, num_steps=steps)
@@ -105,12 +123,19 @@ def test_ka_deviates_from_one_under_cas_schedule(KCAS, MACH, ALT_lo, ALT_hi, sta
         f"max deviation was {max_deviation:.4f}"
     )
 
-def test_ka_above_one_during_cas_acceleration_below_crossover(KCAS, MACH, ALT_lo, ALT_hi, start_weight, steps):
+def test_ka_above_one_during_cas_acceleration_below_crossover():
     """
     Below the crossover altitude the aircraft is accelerating in TAS
     (constant CAS climb = TAS increases), 'ka' should be greater than 1.0.
     """
     print("Running: test_ka_above_one_during_cas_acceleration_below_crossover")
+    MACH = 0.78
+    KCAS = 280
+    ALT_lo = 0 # FT
+    ALT_hi = 20000 # FT
+    start_weight = 75000 # kg
+    steps = 40
+    
     ac = build_test_aircraft()
     schedule = CASMachSchedule(cas_m_s=convert.kt_to_ms(KCAS), mach=MACH)
     climb = ClimbSegment(start_altitude_ft=ALT_lo, end_altitude_ft=ALT_hi, schedule=schedule, num_steps=steps)
@@ -120,24 +145,16 @@ def test_ka_above_one_during_cas_acceleration_below_crossover(KCAS, MACH, ALT_lo
         assert pt["ka"] > 1.0, print(f"Expected ka > 1.0 below crossover, got {pt['ka']:.4f} at {pt['altitude_ft']:.0f} ft")
 
 ###############################################################################
-if __name__ == "__main__":
-    KCAS_list = [150, 200, 250, 280, 320]
-    ALT_list = [0, 10000, 25000, 35000] # FT
-    
-    MACH = 0.78
-    KCAS = 280; KTAS = 280
-    ALT = 20000
-    ALT_lo = 0 # FT
-    ALT_hi = 20000 # FT
-    
-    start_weight = 75000 # kg
-    steps = 40
-    
-    print("SpeedSchedule Function Tests:")
-    print("!!! Any other comment besides 'Running: ' means errors have occured !!!")
-    test_cas_mach_roundtrip(KCAS_list, ALT_list),
-    test_constant_tas_schedule_zero_acceleration(KTAS, ALT),
-    test_cas_mach_schedule_continuity_at_crossover(KCAS, MACH),
-    test_cas_mach_schedule_regimes(KCAS, MACH),
-    test_ka_deviates_from_one_under_cas_schedule(KCAS, MACH, ALT_lo, ALT_hi, start_weight, steps),
-    test_ka_above_one_during_cas_acceleration_below_crossover(KCAS, MACH, ALT_lo, ALT_hi, start_weight, steps),
+if __name__ == "__main__":      
+    tests = [
+        test_cas_mach_roundtrip,
+        test_constant_tas_schedule_zero_acceleration,
+        test_cas_mach_schedule_continuity_at_crossover,
+        test_cas_mach_schedule_regimes,
+        test_ka_deviates_from_one_under_cas_schedule,
+        test_ka_above_one_during_cas_acceleration_below_crossover
+    ]
+    for t in tests:
+        t()
+        print(f"PASSED: {t.__name__}")
+    print("\nAll SpeedSchedule validation checks passed.")

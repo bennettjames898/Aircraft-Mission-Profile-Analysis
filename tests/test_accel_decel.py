@@ -124,6 +124,7 @@ def test_deceleration_with_excessive_idle_thrust_raises():
         raised = True
     assert raised
  
+# -----------------------------------------------------------------------------
 if __name__ == "__main__":
     tests = [
         test_acceleration_increases_mach_and_burns_fuel,
