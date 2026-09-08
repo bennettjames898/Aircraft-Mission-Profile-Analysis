@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from aero_model import SimpleDragPolar
 from propulsion_model import SimpleTurbofan
 from aircraft_build import Aircraft
-from segments import GroundOps, ConstantAltCruiseSegment, ClimbSegment, DescentSegment, LoiterSegment
+from segments import GroundOps, ConstantAltCruiseSegment, ClimbSegment, DescentSegment, LoiterSegment, AccelDecelSegment
 from speed_schedule import CASMachSchedule
 import unit_conversions as convert
 from solver_mission_range import solve_cruise_range_iterate
@@ -27,7 +27,7 @@ def main():
     
     ### Aircraft Definition
     aircraft = Aircraft(
-        name                        = "Test Airliner",
+        name                        = "MockB787-Iter",
         wing_area_ft2               = 3501,
         operating_empty_weight_lb   = 239200,        
         payload_weight_lb           = 47040,
@@ -50,7 +50,7 @@ def main():
 
     ### Climb and Descent Schedule Definition
     # follow 280 KCAS until M0.78, then follow M0.78.
-    MACH = 0.85
+    MACH = 0.825
     climb_sched1   = CASMachSchedule(cas_m_s=convert.kt_to_ms(250), mach=MACH)
     climb_sched2   = CASMachSchedule(cas_m_s=convert.kt_to_ms(277), mach=MACH)
     descent_sched1 = CASMachSchedule(cas_m_s=convert.kt_to_ms(277), mach=MACH)
@@ -62,13 +62,16 @@ def main():
         GroundOps(duration_min=1, throttle_set_pct=1.0),
         ClimbSegment(start_altitude_ft=1500, end_altitude_ft=10000, schedule=climb_sched1, num_steps=100),
         ClimbSegment(start_altitude_ft=10000, end_altitude_ft=37000, schedule=climb_sched2, num_steps=100),
+        AccelDecelSegment(altitude_ft=37000, start_mach=0.825, end_mach=0.85, num_steps=20),
         ConstantAltCruiseSegment(altitude_ft=37000, mach=0.85, range_nm=2750, num_steps=300),
+        AccelDecelSegment(altitude_ft=35000, start_mach=0.85, end_mach=0.825, num_steps=20),
         ClimbSegment(start_altitude_ft=37000, end_altitude_ft=41000, schedule=climb_sched2, num_steps=100),
-        # iterated ConstantAltCruiseSegment goes here (IndexToPlaceIteration = 6)
+        AccelDecelSegment(altitude_ft=41000, start_mach=0.825, end_mach=0.85, num_steps=20),
+        # iterated ConstantAltCruiseSegment goes here (IndexToPlaceIteration = 9)
         DescentSegment(start_altitude_ft=41000, end_altitude_ft=10000, schedule=descent_sched1, num_steps=100),
         DescentSegment(start_altitude_ft=10000, end_altitude_ft=50, schedule=descent_sched2, num_steps=100),
-        # LoiterSegment(altitude_ft=1500, mach=0.3, duration_min=20, num_steps=200),
-        # GroundOps(duration_min=60, throttle_set_pct=0),
+        LoiterSegment(altitude_ft=1500, mach=0.3, duration_min=20, num_steps=200),
+        GroundOps(duration_min=60, throttle_set_pct=0),
     ]
     
     ## Mission solver with iteration on a cruise segment to maximize range
@@ -76,7 +79,7 @@ def main():
         saveDir                 = saveDir,
         aircraft                = aircraft,
         MissionSegmentList      = MissionSegments,
-        IndexToPlaceIteration   = 6,
+        IndexToPlaceIteration   = 9,
         cruise_altitude_ft      = 41000,
         cruise_mach             = 0.85,
         cruise_num_steps        = 300,

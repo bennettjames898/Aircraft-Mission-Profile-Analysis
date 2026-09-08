@@ -1,4 +1,9 @@
 # Aircraft-Mission-Profile-Analysis
+
+[![Tests](https://github.com/bennettjames898/Aircraft-Mission-Profile-Analysis/actions/workflows/tests.yml/badge.svg)](https://github.com/bennettjames898/Aircraft-Mission-Profile-Analysis/actions/workflows/tests.yml)
+[![License: Apache 2.0](https://img.shields.io/github/license/bennettjames898/Aircraft-Mission-Profile-Analysis)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+
 A solver to analyze the performance of a conceptual aircraft along a 
 user-defined mission profile. 
 
@@ -74,9 +79,9 @@ python3 examples/full_mission_profile.py
 python3 examples/max_range_iterate_mission.py
 python3 -m pytest tests/ -v
 ```
-The examples run a 1,500 nm cruise at 35,000 ft / M0.78 followed by a
-30-minute diversion loiter, prints a segment-by-segment fuel/time/weight
-summary, and saves a weight-and-L/D-vs-distance plot.
+The examples showcase a simple and fully iterated mission for an example 
+airliner based on the B787. Both will output two text files showing a summary 
+of the mission as well as a time-history output of each segment.
 
 Defining a climb/descent schedule:
 ```python
@@ -102,6 +107,7 @@ descent are appearing normal, the trimmed gamma solution is believable,
 and that the climb acceleration correction 'ka' is properly accounted.
 `tests/test_max_cruise_iterate.py` checks that the max cruise range iteration 
 is providing realistic outputs, and that its error catching is functioning.
+`tests/test_accel_decel.py` checks the behaviors of the acceleration segment.
 
 Individual file outputs are checked against a hand-computable or
 independently-derivable reference in the corresponding test or
@@ -113,7 +119,7 @@ independently-derivable reference in the corresponding test or
   altitude/Mach.
 - Simple aero model is whole aircraft and assumes critical mach behavior 
   based on Anderson textbook methods.
-- Mission are only ran in a single 'direction' (no radius missions, or 
+- Missions are only ran in a single 'direction' (no radius missions, or 
   outbound/inbound legs).
 - Mission segment continuity is ignored between segments. The aircraft can 
   'teleport' to a different flight condition between two named segments (i.e. 
@@ -124,7 +130,6 @@ independently-derivable reference in the corresponding test or
 - [ ] Functionality for Mission-level fuel sizing: 
 		iteration that guesses initiqal fuel weight and converges when 
 		reserves are met (similar to range root-find).
-- [ ] Add a level flight accel./decel. mission segment
 - [ ] Create an implementation of `AeroModelBase` / `PropulsionModelBase`, to
       read in table data from an outside source (i.e. DATCOM) to demonstrate 
 	  knowledge of iterpolated data handling.

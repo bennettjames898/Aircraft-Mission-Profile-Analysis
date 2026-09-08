@@ -132,18 +132,27 @@ class MissionResult:
         return summaryOut, fnameSum
             
     def buildTimeHistory(self) -> str:
-               
         # column headers
         lines = [
-            f"{'Seg':<12}"                                  # Segment name
-            f"{'Seg Time [min]':>16}{'Run Time [min]':>16}" # Time
-            f"{'Seg Dist [nm]':>16}{'Run Dist [nm]':>16}"   # Distance
-            f"{'Seg Fuel [lb]':>16}{'Run Fuel [lb]':>16}"   # Fuel
-            f"{'Gross Wt [lb]':>16}"                        # Gross Weight
-            f"{'Alt [ft]':>10}{'Mach':>8}{'KTAS':>8}{'KCAS':>8}" # Altitude and Speeds
-            f"{'FN/eng [lb]':>10}{'Drag [lb]':>10}{'Fuel FLow [lb/hr]':>18}" # FN, Drag, WFtotal
-            f"{'Ps Pot. [fpm]':>14}"
+            f"{'Seg':<10}"                                  # Segment name
+            f"{'Seg Time':>10}{'Run Time':>10}"             # Time
+            f"{'Seg Dist':>10}{'Run Dist':>10}"             # Distance
+            f"{'Seg Fuel':>10}{'Run Fuel':>10}"             # Fuel
+            f"{'Gross Wt.':>12}"                            # Gross Weight
+            f"{'Alt.':>8}{'Mach':>8}{'KTAS':>8}{'KCAS':>8}" # Altitude and Speeds
+            f"{'FN/eng':>10}{'Drag':>8}{'Fuel FLow':>12}"   # FN, Drag, WFtotal
+            f"{'Ps theor.':>12}"
         ]
+        lines.append(
+            f"{'':<10}"                                 # Segment name
+            f"{'[min]':>10}{'[min]':>10}"               # Time
+            f"{'[nm]':>10}{'[nm]':>10}"                 # Distance
+            f"{'[lb]':>10}{'[lb]':>10}"                 # Fuel
+            f"{'[lb]':>12}"                             # Gross Weight
+            f"{'[ft]':>8}{'':>8}{'':>8}{'':>8}"         # Altitude and Speeds
+            f"{'[lb]':>10}{'[lb]':>8}{'[lb/hr]':>12}"   # FN, Drag, WFtotal
+            f"{'[fpm]':>12}"
+        )
         
         runTime = 0
         runDist = 0
@@ -154,15 +163,15 @@ class MissionResult:
                 runDist = runDist + segTH['distance_nm']
                 runFuel = runFuel + segTH['Fuel_burn_lb']
                 lines.append(
-                    f"{seg.segment_name:<12}" # segment name
-                    f"{segTH['time_min']:>16.1f}{runTime:>16.1f}" # Time
-                    f"{segTH['distance_nm']:>16.1f}{runDist:>16.1f}" # Distance
-                    f"{segTH['Fuel_burn_lb']:>16.1f}{runFuel:>16.1f}" # Fuel
-                    f"{segTH['weight_lb']:>16.1f}" # Gross Weight
-                    f"{segTH['altitude_ft']:>10.1f}{segTH['mach']:>8.4f}{segTH['tas_kt']:>8.1f}" # ALT / Mach / KTAS
+                    f"{seg.segment_name:<10}" # segment name
+                    f"{segTH['time_min']:>10.1f}{runTime:>10.1f}" # Time
+                    f"{segTH['distance_nm']:>10.1f}{runDist:>10.1f}" # Distance
+                    f"{segTH['Fuel_burn_lb']:>10.1f}{runFuel:>10.1f}" # Fuel
+                    f"{segTH['weight_lb']:>12.1f}" # Gross Weight
+                    f"{segTH['altitude_ft']:>8.1f}{segTH['mach']:>8.4f}{segTH['tas_kt']:>8.1f}" # ALT / Mach / KTAS
                     f"{convert.ms_to_kt(convert.mach_to_cas(segTH['mach'], convert.ft_to_m(segTH['altitude_ft']),self.aircraft.DISAC)):>8.1f}" # KCAS
-                    f"{segTH['thrust_lb']/self.aircraft.propulsion_model.num_engines:10.1f}"f"{segTH['drag_lb']:10.1f}"f"{segTH['fuel_flow_lbphr']:18.1f}"
-                    f"{segTH['Ps_theor_fpm']:14.1f}"
+                    f"{segTH['thrust_lb']/self.aircraft.propulsion_model.num_engines:10.1f}"f"{segTH['drag_lb']:8.1f}"f"{segTH['fuel_flow_lbphr']:12.1f}"
+                    f"{segTH['Ps_theor_fpm']:12.1f}"
                 )
                 
         # build text file
@@ -172,7 +181,7 @@ class MissionResult:
     
     def writeFile(self,filename,text):
         with open(self.saveDir+"\\"+filename,"w") as file:
-            print("Writing "+filename+"...")
+            # print("Writing "+filename+"...")
             for line in text:
                 file.write(line)
 

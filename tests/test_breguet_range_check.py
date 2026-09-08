@@ -1,15 +1,14 @@
 """
-Validation test: numerically integrated CruiseSegment vs. the closed-form
-Breguet range equation.
+Validation test: numerically integrated ConstantAltCruiseSegment vs. the 
+closed-form Breguet range equation.
 
 Why this matters: the Breguet equation
 
     R = (V / TSFC) * (L/D) * ln(W_start / W_end)
 
-is derived from the exact same dW/dx ODE that CruiseSegment integrates
-numerically, under the assumption that L/D and TSFC are constant across
-the segment (i.e., the aircraft's cruise CL / Mach are held fixed, which
-is what a constant-altitude constant-Mach cruise does here). If the
+is derived from the exact same dW/dx ODE that ConstantAltCruiseSegment integrates
+numerically, under the assumption that L/D and TSFC are constant across the 
+segment (i.e., the aircraft's cruise CL / Mach are held fixed). If the
 numerical integrator is implemented correctly, running it for a known
 fuel burn should recover a range that matches Breguet to a tight
 tolerance, and the match should improve as step count increases.
@@ -86,18 +85,15 @@ def run_case(num_steps: int):
 
     return numerical_range_nm, breguet_pred_range_nm, error_pct
 
-
 def test_breguet_agreement_coarse():
     """Even a coarse integration (10 steps) should agree with Breguet within 0.5%."""
     _, _, error_pct = run_case(num_steps=10)
     assert error_pct < 0.5, print(f"Breguet mismatch too large at coarse resolution: {error_pct:.4f}%")
 
-
 def test_breguet_agreement_fine():
     """A finer integration (200 steps) should agree even more closely."""
     _, _, error_pct = run_case(num_steps=200)
     assert error_pct < 0.1, print(f"Breguet mismatch too large at fine resolution: {error_pct:.4f}%")
-
 
 def test_convergence_improves_with_steps():
     """
@@ -110,7 +106,6 @@ def test_convergence_improves_with_steps():
         f"Refining the integration should not increase error: "
         f"coarse={error_coarse:.4f}%, fine={error_fine:.4f}%"
     )
-
 
 def test_fuel_burn_is_positive_and_bounded():
     """Basic check: cruise should burn fuel, and not more than it started with."""
