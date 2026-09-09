@@ -1,10 +1,99 @@
 """
 Full mission example: climb, cruise, descent, and a loiter segment. 
 This exercises every segment type currently implemented and
-is the profile to run when checking that the whole mission chain
-(not just individual segments) behaves properly.
+is the profile to run when checking that the whole mission chain behaves properly.
 
-Run with:  python3 examples/full_mission_profile.py
+===============================================================================
+QUICK START 1 of 3 -- RUN A FIXED MISSION (no mission-level iteration)
+===============================================================================
+Flies a fully specified mission exactly as written and reports how much fuel 
+remains at conclusion. Every segment length is an input, nothing is iteratively 
+solved for at the mission level.
+ 
+Use this mode when you already know the mission and want the fuel burn, time,
+and distance. This method exercises every segment type currently implemented, 
+so it is also the profile to run when checking that the whole mission chain 
+behaves as expected.
+ 
+    Run with:   python examples/full_mission_profile.py
+ 
+THE THREE WAYS TO RUN AN ANALYSIS
+-------------------------------------------------------------------------------
+  1. examples/full_mission_profile.py       THIS FILE
+        Fixed mission, no iteration.        Fuel and range are both inputs.
+  2. examples/max_range_iterate_mission.py
+        Fixed fuel   -> solves cruise range. "How far can it go on this fuel?"
+        (solver_mission_range.py)
+  3. examples/min_fuel_iterate_mission.py
+        Fixed range  -> solves fuel loaded.  "What fuel does this trip need?"
+        (solver_mission_fuel.py)
+ 
+All three share the same initial three setup steps below and differ only in the
+final step. Modes 2 and 3 are inverses of each other and will round trip: the
+fuel that mode 3 solves for a given range is the fuel that makes mode 2 return
+that same range.
+ 
+ 
+THE WORKFLOW (steps 1-3 are identical in all three modes)
+-------------------------------------------------------------------------------
+  STEP 1  Define the Aircraft.
+          An Aircraft is one SPECIFIC LOADED AIRPLANE, not an aircraft type.
+          Empty weight, payload, and fuel are all fixed at construction, and
+          gross_weight_lb / zero_fuel_weight_lb are derived from them. To
+          analyze a different loading, build another Aircraft. Mission.run()
+          takes no weight argument, it reads aircraft.gross_weight_lb.
+            - Weights and areas are POUNDS and FEET on the public API.
+            - DISAF is the non-standard day temperature offset in deg F
+              (DISAF = 0 is a standard day, DISAF = 45 is ISA+25C).
+            - aero_model and propulsion_model are swappable depending on what 
+              models are coded into those containing files.
+ 
+  STEP 2  Define the climb/descent speed schedules.
+          CASMachSchedule(cas_m_s=..., mach=...) locates the MACH/CAS crossover 
+          speed internally. Pass a bare float instead of a schedule object for 
+          a simple constant-Mach climb.
+ 
+  STEP 3  Build the mission segment list, in flight order.
+          Available segments:
+            GroundOps(duration_min, throttle_set_pct)
+                Taxi / ground burn. throttle_set_pct interpolates between
+                idle (0.0) and max (1.0) thrust. No distance covered.
+            ClimbSegment(start_altitude_ft, end_altitude_ft, schedule, num_steps)
+                Max thrust climb. Integrates over ALTITUDE, solving the
+                flight path angle at every step.
+            DescentSegment(start_altitude_ft, end_altitude_ft, schedule, num_steps)
+                Idle thrust descent. Same methods as climb.
+            ConstantAltCruiseSegment(mach, range_nm, altitude_ft, num_steps)
+                Level cruise for a set distance. Integrates over RANGE.
+            LoiterSegment(mach, duration_min, altitude_ft, num_steps)
+                Level cruise for a set time. Integrates over TIME. no distance 
+                credit (intended for resevres).
+            AccelDecelSegment(altitude_ft, start_mach, end_mach, num_steps)
+                Level flight speed change at constant altitude. Max thrust if
+                end_mach > start_mach, idle thrust if it is lower.
+ 
+          NOTE: segments do not know about each other's initial/final 
+          conditions. Nothing checks that one segment's end altitude matches 
+          the next one's start altitude, so a typo will "teleport" the aircraft 
+          between conditions.
+ 
+  STEP 4  Run it. THIS is the step that differs between the three modes.
+          Here: build a Mission and call .run() directly.
+ 
+              mission = Mission(aircraft, MissionSegments, saveDir)
+              result  = mission.run()
+ 
+ 
+OUTPUT / saveDir
+-------------------------------------------------------------------------------
+  saveDir = None      Nothing is written. Use `print(result.summary)` to get
+                      the summary table on the console.
+  saveDir = ".//"     Writes the summary table and the full time history to
+                      files in that directory (current folder here).
+ 
+  result is a MissionResult carrying total_fuel_burned_lb, end_weight_lb,
+  total time and distance, and per-segment results with a time history of each 
+  segment.
 """
 
 import sys

@@ -32,6 +32,7 @@ aero_model.py           - Aero interface + simple parabolic drag polar implement
 aircraft_build.py 	    - Aircraft class: wraps geometry, weights, aero + propulsion models
 atmosphere.py           - ISA atmosphere model (temp, pressure, density, speed of sound)
 solver_mission_range.py - Outer-loop solver for max range given fixed fuel
+solver_mission_fuel.py  - Outer-loop solver for minimum fuel given fixed range
 solver_climb_descent.py - Holds the brentq trim solution used in Climb/Descent
 mission.py              - Mission class: sequences segments, carries weight forward
 propulsion_model.py     - Propulsion interface + simple constant-TSFC turbofan implementation
@@ -71,17 +72,22 @@ by writing one new class, with no changes necessary for the solver code.
   fixed fuel weight, this tool solves for the maximum cruise range. This is 
   a distinct iteration loop wrapping the entire mission in an outer root-find 
   rather than iterating within a single segment. 
+- **Mission-level min-fuel sizing** (`solver_mission_fuel.py`): given a
+  fixed mission range, this tool solves for the minimum fuel required. This is 
+  a distinct iteration loop wrapping the entire mission in an outer root-find 
+  rather than iterating within a single segment.
 
 ## Quick start
 ```bash
 pip install -r requirements.txt
 python3 examples/full_mission_profile.py
 python3 examples/max_range_iterate_mission.py
+python3 examples/min_fuel_iterate_mission.py
 python3 -m pytest tests/ -v
 ```
 The examples showcase a simple and fully iterated mission for an example 
-airliner based on the B787. Both will output two text files showing a summary 
-of the mission as well as a time-history output of each segment.
+airliner based on the B787. Each will output two text files showing a summary 
+of the mission as well as a time-history output of each segment. 
 
 Defining a climb/descent schedule:
 ```python
@@ -107,6 +113,8 @@ descent are appearing normal, the trimmed gamma solution is believable,
 and that the climb acceleration correction 'ka' is properly accounted.
 `tests/test_max_cruise_iterate.py` checks that the max cruise range iteration 
 is providing realistic outputs, and that its error catching is functioning.
+`test/test_min_fuel_iterate.py` checks that the mission fuel iteration is returning
+realistic outputs, and that it's output can be repeated using `tests/test_max_cruise_iterate.py`. 
 `tests/test_accel_decel.py` checks the behaviors of the acceleration segment.
 
 Individual file outputs are checked against a hand-computable or
@@ -127,9 +135,6 @@ independently-derivable reference in the corresponding test or
 
 ## Future Work
 - [ ] Improved outputting & plot generation (currently ad hoc plotting)
-- [ ] Functionality for Mission-level fuel sizing: 
-		iteration that guesses initiqal fuel weight and converges when 
-		reserves are met (similar to range root-find).
 - [ ] Create an implementation of `AeroModelBase` / `PropulsionModelBase`, to
       read in table data from an outside source (i.e. DATCOM) to demonstrate 
 	  knowledge of iterpolated data handling.

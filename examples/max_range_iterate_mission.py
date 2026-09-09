@@ -4,7 +4,94 @@ aircraft can fly on a given fuel load, with a fixed climb, descent, and
 diversion reserve, converging until the mission lands at exactly
 zero-fuel weight.
 
-Run with:  python3 examples/max_range_mission.py
+===============================================================================
+QUICK START 2 of 3 -- SOLVE MAXIMUM RANGE (fixed fuel -> solves cruise range)
+===============================================================================
+Answers "how far can this airplane fly on the fuel it is carrying?"
+ 
+Fuel is FIXED (from the Aircraft() definition). The length of ONE cruise
+segment is the unknown. solver_mission_range.py runs the mission with different 
+cruise ranges, using brentq to find the range at which the aircraft lands at 
+exactly its zero fuel weight.
+ 
+    Run with:   python examples/max_range_iterate_mission.py
+ 
+ 
+THE THREE WAYS TO RUN AN ANALYSIS
+-------------------------------------------------------------------------------
+  1. examples/full_mission_profile.py
+        Fixed mission, no iteration.        Fuel and range are both inputs.
+  2. examples/max_range_iterate_mission.py  THIS FILE
+        Fixed fuel   -> solves cruise range. "How far can it go on this fuel?"
+        (solver_mission_range.py)
+  3. examples/min_fuel_iterate_mission.py
+        Fixed range  -> solves minimum fuel. "How much fuel does this mission require?"
+        (solver_mission_fuel.py)
+ 
+Modes 2 and 3 are inverses and will round trip. Feed this solver's answer for
+fuel into mode 3 and you get this mission's range back.
+ 
+See full_mission_profile.py for the full description of STEPS 1-3 (defining
+the Aircraft, the speed schedules, and the segment list). They are identical
+here. Only STEP 4 differs, and is documented below.
+ 
+ 
+STEP 4 (THIS MODE): call solve_cruise_range_iterate()
+-------------------------------------------------------------------------------
+This is a wrapper function to utilize the range root-find logic found in 
+solver_mission_range.py. The wrapper places a cruise segment into the provided 
+mission segment list and iterates that segment's range to locate the zero-fuel 
+condition.
+ 
+    result = solve_cruise_range_iterate(
+        saveDir               = saveDir,
+        aircraft              = aircraft,
+        MissionSegmentList    = MissionSegments,
+        IndexToPlaceIteration = 9,
+        cruise_altitude_ft    = 41000,
+        cruise_mach           = 0.85,
+        cruise_num_steps      = 300,
+        range_bracket_nm      = (0, 6000),
+        converge_tol          = 0.1,
+    )
+ 
+INPUTS: 
+  IndexToPlaceIteration [0-base array position]
+      The list index where the solved cruise segment gets inserted. It is a
+      plain list 'insert()', so the segment currently at that index and onwards
+      shifts back one. DO NOT put a cruise segment there manually,
+      the solver builds it fresh at every iteration. Mark the spot with a
+      comment in the segment list (as done below) so the index stays obvious
+      if segments are added or removed later. Double-check the summary output 
+      to ensure the iterated segment is placed in the correct order.
+ 
+  cruise_altitude_ft [ft] / cruise_mach [nd]
+      The conditions the iterated cruise leg flies at.
+ 
+  range_bracket_nm [nm]
+      Initial search bracket. The upper bound is doubled automatically (up to
+      10 times) if the aircraft still has fuel at that range. If it cannot 
+      bracket an answer it raises MissionSizingError rather than returning 
+      meaningless results.
+ 
+  converge_tol [nm]
+      Convergence tolerance on the cruise range.
+ 
+ 
+READING THE OUTPUT
+-------------------------------------------------------------------------------
+  Returns a MaxRangeIteratedResult:
+      .cruise_range_nm    solved length of the iterated cruise segment
+      .mission_result     the MissionResult for the converged mission
+      .residual_lb        fuel left at the end, should be ~0
+      .iterations         how many full missions were flown to converge
+ 
+  NOTE .cruise_range_nm is the ITERATED SEGMENT distance. Total mission distance
+  (including climb, descent, and all cruise legs) is recorded in
+  .mission_result.total_distance_nm.
+ 
+  saveDir behaves the same as in mode 1. Intermediate iterations are not 
+  written to an output file, only the final converged mission.
 """
 
 import sys
@@ -27,7 +114,7 @@ def main():
     
     ### Aircraft Definition
     aircraft = Aircraft(
-        name                        = "MockB787-Iter",
+        name                        = "MockB787-IterRange",
         wing_area_ft2               = 3501,
         operating_empty_weight_lb   = 239200,        
         payload_weight_lb           = 47040,
