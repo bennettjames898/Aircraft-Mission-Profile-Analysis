@@ -4,11 +4,28 @@ to locate the range at which 0 residual fuel remains in the entire mission.
 
 This tool iterates outside of the larger mission.py context rather than within 
 a single segment. This architecture maintains the MissionSegment framework 
-where individual segments do not interact with the mission beofre or after.
+where individual segments do not interact with the mission before or after.
 
 brentq is used to iterate on the cruise range, and uses standard scipy inputs 
 to allocate the search bracket andsolution tolerance. Logic is in place to 
 expand the search bracket if the root (max range & zero fuel) cannot be found. 
+
+A wrapper function is included at the bottom of this file and should be used 
+to call this functionality into a mission analysis.
+
+    solve_cruise_range_iterate(
+        saveDir --------------- Save directory string (use 'None' to not save)
+        aircraft -------------- Aircraft class containing Mass/Aero/Prop
+        MissionSegmentList ---- Mission segments WITHOUT the cruise segment to be solved
+        IndexToPlaceIteration - MissionSegmentList.insert() location to place the iterated cruise segment
+        cruise_altitude_ft ---- Cruise altitude for the iterated segment
+        cruise_mach ----------- Cruise Mach for the iterated segment
+        cruise_num_steps ------ # of analysis steps over the iterated segment
+        range_bracket_nm ------ Initial range solution bracket
+        converge_tol ---------- Tolerance on range output to consider success
+        ) -> MaxRangeIteratedResult:
+
+See 'examples/max_range_iterate_mission.py' for quick reference on application.
 """
 
 from typing import Callable, List, Tuple
@@ -38,7 +55,7 @@ class MaxRangeIteratedResult:
             f"Range converged in {self.iterations} iterations "
             f"(residual: {self.residual_lb:.4f} lb)\n"
             f"Iterated to Segment range = {self.cruise_range_nm:.1f} [nm]"
-            )
+        )
 
 def solve_cruise_range(
     aircraft: Aircraft,

@@ -4,9 +4,9 @@ Climb/descent speed schedules.
 Every schedule below exposes the same three-method interface so
 segments.py doesn't need to know which kind of schedule it's using:
 
-    mach_at_altitude(altitude_m) -> Mach number to fly at that altitude
-    tas_at_altitude(altitude_m)  -> true airspeed (m/s) at that altitude
-    dtas_dh(altitude_m)          -> d(TAS)/d(altitude) (m/s per m)
+    mach_at_altitude(altitude_m) -- Mach number to fly at that altitude
+    tas_at_altitude(altitude_m) --- true airspeed (m/s) at that altitude
+    dtas_dh(altitude_m) ----------- d(TAS)/d(altitude) (m/s per m)
 
 If TAS changes with altitude during the climb, the aircraft is 
 accelerating in true airspeed even during a "steady" climb, and that 
@@ -77,14 +77,12 @@ class ConstantCASSchedule(SpeedScheduleBase):
 class CASMachSchedule(SpeedScheduleBase):
     """
     The realistic climb/descent schedule: constant CAS up to a crossover
-    altitude, constant Mach above it. This is how essentially every jet
-    transport climb/descent is actually flown (e.g. "280/.78").
+    altitude, constant Mach above it.
 
     The crossover altitude is found by root-finding for the altitude at
     which the CAS schedule's instantaneous Mach equals the target cruise
-    Mach -- CAS-implied Mach increases monotonically with altitude (see
-    atmosphere.py's cas_to_mach sanity check), so this is well-posed for
-    brentq.
+    Mach. CAS-implied Mach increases monotonically with altitude (see
+    atmosphere.py's cas_to_mach sanity check).
     """
 
     def __init__(self, cas_m_s: float, mach: float, altitude_search_ceiling_m: float = 20000):
@@ -132,6 +130,7 @@ def as_schedule(value) -> SpeedScheduleBase:
         return value
     return ConstantMachSchedule(float(value))
 
+# DEBUGGING--------------------------------------------------------------------
 if __name__ == "__main__":
     
     KCAS = 280

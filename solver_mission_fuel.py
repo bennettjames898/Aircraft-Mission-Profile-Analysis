@@ -1,33 +1,32 @@
 """
-This script solves for the minimum fuel load required to complete a mission of
-a FIXED range through brentq() to locate the fuel weight at which 0 residual
-fuel remains at the end of the mission (or exactly the required reserve).
+This script solves for the minimum fuel load required to complete a fixed range 
+mission of through brentq() to locate the fuel weight at which 0 residual
+fuel remains at the end of the mission (or the input reserve amount).
 
-This is the inverse of solver_mission_range.py: that solver holds fuel fixed
-and iterates the cruise range, this one holds the range fixed and iterates the
-fuel loaded. Both iterate outside of the larger mission.py context rather than
-within a single segment, maintaining the MissionSegment framework where
-individual segments do not interact with the mission before or after.
-
-One structural difference worth noting against solver_mission_range.py: the
-range solver's free variable lives in the SEGMENT LIST (a cruise segment is
-rebuilt at each trial range), so it iterates by calling a build_segments_fn.
-Here the free variable is the fuel load, which lives on the AIRCRAFT
-(Aircraft derives gross_weight_lb from fuel_weight_lb at construction, and
-Mission.run() reads that weight directly). So this solver holds the segment
-list fixed and rebuilds a trial AIRCRAFT at each iteration instead. The
-segments themselves never change and never need to know fuel is being solved
-for.
+This solver holds the range fixed and iterates the fuel load within the 
+aircraft() class (aircraft derives gross_weight_lb from fuel_weight_lb at 
+construction, Mission.run() uses fuel_weight_lb directly), and iterates outside 
+of the larger mission.py. This solver holds the segment list fixed and 
+rebuilds a trial aircraft() at each iteration.
 
 brentq is used to iterate on the fuel weight, and uses standard scipy inputs
 to allocate the search bracket and solution tolerance. Logic is in place to
 expand the search bracket if the root (minimum fuel & zero residual) cannot be
 found.
 
-Note the residual sign convention here is OPPOSITE to solver_mission_range.py.
-More fuel leaves more fuel remaining (residual increases with fuel), whereas
-more range leaves less fuel remaining (residual decreases with range). The
-bracket expansion logic is flipped to match.
+A wrapper function is included at the bottom of this file and should be used 
+to call this functionality into a mission analysis.
+
+    solve_min_fuel_iterate(
+        saveDir -------------- Save directory string (use 'None' to not save)
+        aircraft ------------- Aircraft class containing Mass/Aero/Prop
+        MissionSegmentList --- Full list of mission segments
+        reserve_fuel_lb ------ Fuel over 0 to retain at the end of the mission
+        fuel_bracket_lb ------ Initial fuel solution bracket
+        converge_tol --------- Tolerance on fuel output to consider success
+        ) -> MinFuelIteratedResult:
+
+See 'examples/min_fuel_iterate_mission.py' for quick reference on application.
 """
 
 import copy
@@ -67,12 +66,6 @@ def _update_ac_fuel(aircraft: Aircraft, fuel_weight_lb: float) -> Aircraft:
     """
     Return a copy of 'aircraft' carrying a different fuel load, with the
     derived gross weight updated to match.
-
-    A copy is used rather than mutating the caller's aircraft so the object
-    passed in is never modified as a side effect of solving (same reasoning as
-    copying the segment list in solver_mission_range.py's build()). The copy is
-    shallow on purpose: aero_model and propulsion_model hold no per-mission
-    state, so every trial aircraft can safely share the same model instances.
     """
     trial = copy.copy(aircraft)
     trial.fuel_weight_lb = fuel_weight_lb
@@ -202,27 +195,13 @@ def solve_min_fuel_iterate(
     saveDir:                str,
     aircraft:               Aircraft,
     MissionSegmentList:     List[MissionSegment],
-    # IndexToPlaceIteration:  int,
-    # cruise_range_nm:        float,
-    # cruise_altitude_ft:     float,
-    # cruise_mach:            float,
-    # cruise_num_steps:       int = 100,
     reserve_fuel_lb:        float = 0,
     fuel_bracket_lb:        Tuple[float, float] = (0, 100000),
     converge_tol:           float = 0.1,
     ) -> MinFuelIteratedResult:
-
-    # Unlike solver_mission_range.py this is built ONCE, not per iteration --
-    # the cruise range is the fixed input here, the fuel is what is solved for.
-    # CruiseSegment = ConstantAltCruiseSegment(
-    #     altitude_ft = cruise_altitude_ft,
-    #     mach        = cruise_mach,
-    #     range_nm    = cruise_range_nm,
-    #     num_steps   = cruise_num_steps,
-    # )
+    
     FullMissionSegments = MissionSegmentList.copy()
-    # FullMissionSegments.insert(IndexToPlaceIteration, CruiseSegment)
-
+    
     return solve_min_fuel(
         aircraft,
         FullMissionSegments,
@@ -230,4 +209,4 @@ def solve_min_fuel_iterate(
         reserve_fuel_lb,
         fuel_bracket_lb,
         converge_tol,
-        )
+    )

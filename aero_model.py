@@ -8,7 +8,6 @@ should subclass AeroModelBase and implement the same two methods.
 
 import math
 from abc import ABC, abstractmethod
-import inspect
 
 class AeroModelBase(ABC):
     """Abstract interface all aero models must implement."""

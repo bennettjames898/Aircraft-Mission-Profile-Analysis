@@ -29,7 +29,6 @@ class TrimSolverError(RuntimeError):
     """
     pass
 
-
 def flight_path_angle_residual(gamma_rad, aircraft, weight_kg, altitude_m, mach, thrust_n, ka):
     """
     Residual of the stability axis force balance:
@@ -61,8 +60,16 @@ def flight_path_angle_residual(gamma_rad, aircraft, weight_kg, altitude_m, mach,
     drag_n          = cd * q * aircraft.wing_area_m2
     return thrust_n - drag_n - weight_n * math.sin(gamma_rad) * ka
 
-def solve_climb_gamma(aircraft, weight_kg, altitude_m, mach, thrust_n,
-    gamma_min_deg=0.05, gamma_max_deg=25.0, ka=1.0):
+def solve_climb_gamma(
+        aircraft, 
+        weight_kg, 
+        altitude_m, 
+        mach, 
+        thrust_n,
+        gamma_min_deg=0.05, 
+        gamma_max_deg=25.0, 
+        ka=1.0
+    ):
     """
     Solve for the climb gamma at which the aircraft is in equilibrium given full thrust.
     """
