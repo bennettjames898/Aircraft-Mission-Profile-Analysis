@@ -27,14 +27,14 @@ TROPOPAUSE_ALT_M    = 11000
 TROPOPAUSE_TEMP_K   = 216.65
 LAPSE_RATE          = -0.0065  # K/m, valid 0-11 km
 
-def isa_conditions(altitude_m: float, delta_isa: float = 0.0) -> dict:
+def isa_conditions(altitude_m: float, DISAC: float) -> dict:
     """
     Compute atmospheric properties at a given geopotential altitude.
 
     Parameters:
     altitude_m : float
         Geopotential altitude in meters. Valid 0 to 20,000 m.
-    delta_isa : float, optional
+    DISAC : float
         Temperature offset from standard day, in Kelvin (e.g. ISA+10 -> 10.0).
         Applied as a constant offset to the temperature profile.
 
@@ -50,12 +50,12 @@ def isa_conditions(altitude_m: float, delta_isa: float = 0.0) -> dict:
 
     if altitude_m <= TROPOPAUSE_ALT_M:
         # Troposphere: linear lapse rate
-        temperature_K = T0 + LAPSE_RATE * altitude_m + delta_isa
+        temperature_K = T0 + LAPSE_RATE * altitude_m + DISAC
         temperature_std_K = T0 + LAPSE_RATE * altitude_m  # pressure uses standard T
         pressure_Pa = P0 * (temperature_std_K / T0) ** (-G0 / (LAPSE_RATE * R_AIR))
     else:
         # Lower stratosphere: isothermal
-        temperature_K = TROPOPAUSE_TEMP_K + delta_isa
+        temperature_K = TROPOPAUSE_TEMP_K + DISAC
         temperature_std_K = TROPOPAUSE_TEMP_K
         pressure_tropopause = P0 * (TROPOPAUSE_TEMP_K / T0) ** (
             -G0 / (LAPSE_RATE * R_AIR)

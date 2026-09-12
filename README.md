@@ -30,6 +30,8 @@ of the mission as well as a time-history output of each segment.
 Defining a climb/descent schedule:
 ```python
 from speed_schedule import CASMachSchedule, ConstantMachSchedule
+from segments import ClimbSegment
+from unit_conversions import kt_to_ms
 
 # 280 kt CAS to M0.78, then constant M0.78
 schedule = CASMachSchedule(cas_m_s=kt_to_ms(280), mach=0.78)
@@ -43,18 +45,23 @@ climb_simple = ClimbSegment(start_altitude_ft=0, end_altitude_ft=35000, schedule
 ## Architecture
 ```
 aero_model.py           - Aero interface + simple parabolic drag polar implementation
-aircraft_build.py 	    - Aircraft class: wraps geometry, weights, aero + propulsion models
+aircraft_build.py       - Aircraft class: wraps geometry, weights, aero + propulsion models
 atmosphere.py           - ISA atmosphere model (temp, pressure, density, speed of sound)
 solver_mission_range.py - Outer-loop solver for max range given fixed fuel
 solver_mission_fuel.py  - Outer-loop solver for minimum fuel given fixed range
 solver_climb_descent.py - Holds the brentq trim solution used in Climb/Descent
 mission.py              - Mission class: sequences segments, carries weight forward
-propulsion_model.py     - Propulsion interface + simple constant-TSFC turbofan implementation
-segments.py             - MissionSegment base class, ConstantAltCruiseSegment (RK4), LoiterSegment (RK4), ClimbSegment/DescentSegment (brentq)
+propulsion_model.py     - Propulsion interface + simple constant-TSFC turbofan and
+                          constant-PSFC turboprop (advance-ratio efficiency +
+                          tip-Mach compressibility) implementations
+segments.py             - MissionSegment base class, GroundOps (ground fuel burn),
+                          AccelDecelSegment (RK4 over Mach), ConstantAltCruiseSegment
+                          (RK4), LoiterSegment (RK4), ClimbSegment/DescentSegment (brentq)
 speed_schedule.py       - Climb/descent speed schedules (constant Mach/TAS/CAS, CAS/Mach crossover)
 unit_conversions.py     - Collection of unit conversions used across the project
 examples/               - Runnable end-to-end mission scripts
-tests/                  - Validation tests (Breguet convergence, climb/descent validation, speed schedule, etc.)
+tests/                  - Validation tests (Breguet convergence, climb/descent validation, 
+						  speed schedule, accel/decel, etc.)
 ```
 
 **Design principle:** `aero_model.py` and `propulsion_model.py` define
@@ -78,14 +85,23 @@ dataset-specific code logic.
   every point along the climb/descent profile.
 - **Climb acceleration correction**: Excess thrust required to accelerate 
   in TAS is accounted for in climbs and descents by the factor
-  `ka = 1 + (V/g)(dV/dh)` in the force balance (`solver.py`), computed
+  `ka = 1 + (V/g)(dV/dh)` in the force balance (`solver_climb_descent.py`), computed
   from the schedule's `dtas_dh` at every point. See the
   references and full derivation in `solver_climb_descent.py`'s module 
   docstring (Marchman, *Aerodynamics and Aircraft Performance*, Virginia Tech)
+- **Level-flight acceleration/deceleration** (`AccelDecelSegment`): the
+  explicit T − D = m(dV/dt) force balance integrated over Mach (rather than
+  altitude or distance) via RK4, at full thrust when accelerating and idle
+  thrust when decelerating.
 - **Coupled weight/fuel-burn integration**: 4th-order Runge-Kutta on
   `dW/dx = -fuel_flow / V` for cruise, `dW/dt = -fuel_flow` for loiter
 - **Breguet range equation** as an independent closed-form check on the
   numerical integrator.
+- **Turboprop propulsion model** (`propulsion_model.py:SimpleTurboprop`): a
+  power-based alternative to the constant-TSFC turbofan. Available thrust is
+  the lesser of the momentum-theory static-thrust limit and `eta_prop * P / V`,
+  where propeller efficiency combines an advance-ratio (`J = V/(n*D)`) curve
+  fit with a helical tip-Mach compressibility loss.
 - **Mission-level max-range sizing** (`solver_mission_range.py`): given a
   fixed fuel weight, this tool solves for the maximum cruise range. This is 
   a distinct iteration loop wrapping the entire mission in an outer root-find 
@@ -106,7 +122,7 @@ descent are appearing normal, the trimmed gamma solution is believable,
 and that the climb acceleration correction 'ka' is properly accounted.
 `tests/test_max_cruise_iterate.py` checks that the max cruise range iteration 
 is providing realistic outputs, and that its error catching is functioning.
-`test/test_min_fuel_iterate.py` checks that the mission fuel iteration is 
+`tests/test_min_fuel_iterate.py` checks that the mission fuel iteration is 
 returning realistic outputs, and that it's output can be repeated using 
 `tests/test_max_cruise_iterate.py`. 
 `tests/test_accel_decel.py` checks the behaviors of the acceleration segment.
@@ -116,9 +132,13 @@ independently-derivable reference in the corresponding test or
 `__name__ == "__main__"` block of each `.py` file
 
 ## Simplifications & Assumptions
-- Constant TSFC propulsion model (no altitude/Mach/throttle variation)
+- Constant TSFC (turbofan) / constant PSFC (turboprop) propulsion models
+  (no altitude/Mach/throttle-based specific fuel consumption variation).
 - Idle thrust is modeled as a fixed fraction of max thrust at the same
   altitude/Mach.
+- Turboprop propeller efficiency (`SimpleTurboprop`) uses a tunable
+  advance-ratio curve fit, and assumes an ideal constant-speed prop. 
+  Residual core jet thrust and flat rating are not modeled.
 - Simple aero model is whole aircraft and assumes critical mach behavior 
   based on Anderson textbook methods.
 - Missions are only ran in a single 'direction' (no radius missions, or 
@@ -144,7 +164,7 @@ independently-derivable reference in the corresponding test or
   `mach_to_cas`) — compressible pitot-static relation from FAA,
   *Pilot's Handbook of Aeronautical Knowledge*
 - **Climb acceleration factor / "kinetic correction factor"**
-  (`ka` in `solver.py`) — derived from the flight path force
+  (`ka` in `solver_climb_descent.py`) — derived from the flight path force
   balance and the chain rule for dV/dt:
   - Marchman, J.F., *Aerodynamics and Aircraft Performance*, 3rd ed.,
     Virginia Tech (open textbook), Ch. 5:

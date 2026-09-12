@@ -1,5 +1,5 @@
 """
-Unit conversons used throughout the project.
+Unit conversions used throughout the project.
 
 """
 import math
@@ -73,31 +73,31 @@ def fts_to_ms(fts: float) -> float:
 ###############################################################################
 import atmosphere
 # MACH to True airspeed (m/s)
-def mach_to_tas(mach: float, altitude_m: float, delta_isa: float = 0.0) -> float:
-    a = atmosphere.isa_conditions(altitude_m, delta_isa)["speed_of_sound_m_s"]
+def mach_to_tas(mach: float, altitude_m: float, DISAC: float = 0.0) -> float:
+    a = atmosphere.isa_conditions(altitude_m, DISAC)["speed_of_sound_m_s"]
     return mach * a
 
 # True airspeed (m/s) to MACH
-def tas_to_mach(tas_m_s: float, altitude_m: float, delta_isa: float = 0.0) -> float:
-    a = atmosphere.isa_conditions(altitude_m, delta_isa)["speed_of_sound_m_s"]
+def tas_to_mach(tas_m_s: float, altitude_m: float, DISAC: float = 0.0) -> float:
+    a = atmosphere.isa_conditions(altitude_m, DISAC)["speed_of_sound_m_s"]
     return tas_m_s / a
 
 # Calibrated Airspeed to MACH
-def cas_to_mach(cas_m_s: float, altitude_m: float, delta_isa: float = 0.0) -> float:
+def cas_to_mach(cas_m_s: float, altitude_m: float) -> float:
     """
     Reference: Anderson, Introduction to Flight
     """
     qc = atmosphere.P0 * ((1.0 + 0.2 * (cas_m_s / atmosphere.A0) ** 2) ** 3.5 - 1.0)
-    p_local = atmosphere.isa_conditions(altitude_m, delta_isa)["pressure_Pa"]
+    p_local = atmosphere.isa_conditions(altitude_m, 0)["pressure_Pa"]
     return math.sqrt(5.0 * ((qc / p_local + 1.0) ** (2.0 / 7.0) - 1.0))
 
 # MACH to Calibrated Airspeed
-def mach_to_cas(mach: float, altitude_m: float, delta_isa: float = 0.0) -> float:
-    p_local = atmosphere.isa_conditions(altitude_m, delta_isa)["pressure_Pa"]
+def mach_to_cas(mach: float, altitude_m: float) -> float:
+    p_local = atmosphere.isa_conditions(altitude_m, 0)["pressure_Pa"]
     qc = p_local * ((1.0 + 0.2 * mach ** 2) ** 3.5 - 1.0)
     return atmosphere.A0 * math.sqrt(5.0 * ((qc / atmosphere.P0 + 1.0) ** (2.0 / 7.0) - 1.0))
 
 # Dynamic pressure (Pa) lookup
-def dynamic_pressure(tas_m_s: float, altitude_m: float, delta_isa: float = 0.0) -> float:
-    rho = atmosphere.isa_conditions(altitude_m, delta_isa)["density_kg_m3"]
+def dynamic_pressure(tas_m_s: float, altitude_m: float, DISAC: float = 0.0) -> float:
+    rho = atmosphere.isa_conditions(altitude_m, DISAC)["density_kg_m3"]
     return 0.5 * rho * tas_m_s ** 2

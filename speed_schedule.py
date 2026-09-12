@@ -13,8 +13,9 @@ accelerating in true airspeed even during a "steady" climb, and that
 acceleration consumes some of the available excess power that would go 
 into rate of climb.
 
-solver.py uses dtas_dh to apply that correction (see "acceleration
-factor" in solver.py).
+segments.py (CommonGammaSegment) uses dtas_dh to compute that correction
+('ka'), which is then applied in the trim solve done by
+solver_climb_descent.py.
 """
 
 from abc import ABC, abstractmethod
@@ -22,11 +23,11 @@ import unit_conversions as convert
 
 class SpeedScheduleBase(ABC):
     @abstractmethod
-    def mach_at_altitude(self, altitude_m: float) -> float:
+    def mach_at_altitude(self, altitude_m: float, DISAC: float = 0) -> float:
         raise NotImplementedError
 
-    def tas_at_altitude(self, altitude_m: float) -> float:
-        return convert.mach_to_tas(self.mach_at_altitude(altitude_m), altitude_m)
+    def tas_at_altitude(self, altitude_m: float, DISAC: float = 0):
+        return convert.mach_to_tas(self.mach_at_altitude(altitude_m,DISAC), altitude_m, DISAC)
 
     def dtas_dh(self, altitude_m: float, eps_m: float = 10.0) -> float:
         """
@@ -43,7 +44,7 @@ class ConstantMachSchedule(SpeedScheduleBase):
     def __init__(self, mach: float):
         self.mach = mach
 
-    def mach_at_altitude(self, altitude_m: float) -> float:
+    def mach_at_altitude(self, altitude_m: float, DISAC: float = 0) -> float:
         return self.mach
 
 
@@ -53,10 +54,10 @@ class ConstantTASSchedule(SpeedScheduleBase):
     def __init__(self, tas_m_s: float):
         self.tas_m_s = tas_m_s
 
-    def mach_at_altitude(self, altitude_m: float) -> float:
-        return convert.tas_to_mach(self.tas_m_s, altitude_m)
+    def mach_at_altitude(self, altitude_m: float, DISAC: float = 0) -> float:
+        return convert.tas_to_mach(self.tas_m_s, altitude_m, DISAC)
 
-    def tas_at_altitude(self, altitude_m: float) -> float:
+    def tas_at_altitude(self, altitude_m: float, DISAC: float = 0) -> float:
         return self.tas_m_s
 
     def dtas_dh(self, altitude_m: float, eps_m: float = 10.0) -> float:
@@ -70,7 +71,7 @@ class ConstantCASSchedule(SpeedScheduleBase):
     def __init__(self, cas_m_s: float):
         self.cas_m_s = cas_m_s
 
-    def mach_at_altitude(self, altitude_m: float) -> float:
+    def mach_at_altitude(self, altitude_m: float, DISAC: float = 0) -> float:
         return convert.cas_to_mach(self.cas_m_s, altitude_m)
 
 
@@ -113,7 +114,7 @@ class CASMachSchedule(SpeedScheduleBase):
     def crossover_altitude_m(self) -> float:
         return self._crossover_altitude_m
 
-    def mach_at_altitude(self, altitude_m: float) -> float:
+    def mach_at_altitude(self, altitude_m: float, DISAC: float = 0) -> float:
         if altitude_m <= self._crossover_altitude_m:
             return convert.cas_to_mach(self.cas_m_s, altitude_m)
         return self.mach
@@ -135,6 +136,7 @@ if __name__ == "__main__":
     
     KCAS = 280
     Mach = 0.78
+    DISAF = 0
 
     schedule = CASMachSchedule(cas_m_s=convert.kt_to_ms(KCAS), mach=Mach)
     print(f"{KCAS} kt / M{Mach} schedule -- crossover altitude: {convert.m_to_ft(schedule.crossover_altitude_m):.0f} ft\n")
@@ -142,7 +144,7 @@ if __name__ == "__main__":
     print(f"{'Alt (ft)':>10} {'Mach':>8} {'TAS (kt)':>10} {'dTAS/dh (m/s per 1000ft)':>26}")
     for alt_ft in [0, 5000, 10000, 20000, 28000, 31000, 32000, 35000]:
         alt_m = convert.ft_to_m(alt_ft)
-        m = schedule.mach_at_altitude(alt_m)
-        tas_kt = convert.ms_to_kt(schedule.tas_at_altitude(alt_m))
+        m = schedule.mach_at_altitude(alt_m, convert.DISAF_to_C(DISAF))
+        tas_kt = convert.ms_to_kt(schedule.tas_at_altitude(alt_m, convert.DISAF_to_C(DISAF)))
         dtdh = convert.m_to_ft(schedule.dtas_dh(alt_m))  # per 1000 ft
         print(f"{alt_ft:>10} {m:>8.4f} {tas_kt:>10.1f} {dtdh:>26.3f}")

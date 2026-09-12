@@ -48,8 +48,8 @@ def flight_path_angle_residual(gamma_rad, aircraft, weight_kg, altitude_m, mach,
     """
     
     # Atmosphere conditions
-    tas         = convert.mach_to_tas(mach, altitude_m)
-    rho         = isa_conditions(altitude_m)["density_kg_m3"]
+    tas         = convert.mach_to_tas(mach, altitude_m, aircraft.DISAC)
+    rho         = isa_conditions(altitude_m, aircraft.DISAC)["density_kg_m3"]
     q           = 0.5 * rho * tas ** 2
 
     # Aero data

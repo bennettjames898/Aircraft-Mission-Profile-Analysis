@@ -80,17 +80,20 @@ class MissionResult:
         prop_lines = prop_lines[:-1]
         sumOutProp = "\n".join(prop_lines)
         
-        # Mass Props values
-        lines = [
+        # AC & Mass Props values
+        ac_lines = [
             "\n----------------------------------Aircraft Model-------------------------------------",
-            f"Name:               {self.aircraft.name}",
-            f"Wing Area [ft^2]:   {self.aircraft.wing_area_m2/(convert.ft_to_m(1)**2)}",
-            f"OWE [lb]:           {self.aircraft.operating_empty_weight_lb}",
-            f"Payload [lb]:       {self.aircraft.payload_weight_lb}",
-            f"Internal Fuel [lb]: {self.aircraft.fuel_weight_lb}",
-            f"Gross Weight [lb]:  {self.aircraft.gross_weight_lb}",
+            f"Name                       = {self.aircraft.name}",
+            f"Wing Area [ft^2]           = {self.aircraft.wing_area_m2/(convert.ft_to_m(1)**2)}",
+            f"OWE [lb]                   = {self.aircraft.operating_empty_weight_lb}",
+            f"Payload [lb]               = {self.aircraft.payload_weight_lb}",
+            f"Internal Fuel [lb]         = {self.aircraft.fuel_weight_lb}",
+            f"Gross Weight [lb]          = {self.aircraft.gross_weight_lb}",
+            f"STD Day Delta Temp [DISAF] = {convert.DISAC_to_F(self.aircraft.DISAC)}",
             ]
-        lines.append(f"{'Mission summary':^112}")
+        sumOutAC = "\n".join(ac_lines)
+        
+        lines = [f"\n{'Mission summary':^112}"]
         lines.append("." * 112)
         lines.append(
             f"{'Segment Name':<12}{'Time (min)':>16}{'Dist (nm)':>16}{'Fuel (lb)':>20}{'Gross Wt. (lb)':>16}"
@@ -127,7 +130,7 @@ class MissionResult:
         
         # build text file
         sumOutTab = "\n".join(lines)
-        summaryOut = sumOutAero+sumOutProp+sumOutTab
+        summaryOut = sumOutAero+sumOutProp+sumOutAC+sumOutTab
         fnameSum = "MssnSum_"+self.aircraft.name.replace(" ","-")+".txt"
         return summaryOut, fnameSum
             
@@ -169,7 +172,7 @@ class MissionResult:
                     f"{segTH['Fuel_burn_lb']:>10.1f}{runFuel:>10.1f}" # Fuel
                     f"{segTH['weight_lb']:>12.1f}" # Gross Weight
                     f"{segTH['altitude_ft']:>8.1f}{segTH['mach']:>8.4f}{segTH['tas_kt']:>8.1f}" # ALT / Mach / KTAS
-                    f"{convert.ms_to_kt(convert.mach_to_cas(segTH['mach'], convert.ft_to_m(segTH['altitude_ft']),self.aircraft.DISAC)):>8.1f}" # KCAS
+                    f"{convert.ms_to_kt(convert.mach_to_cas(segTH['mach'], convert.ft_to_m(segTH['altitude_ft']))):>8.1f}" # KCAS
                     f"{segTH['thrust_lb']/self.aircraft.propulsion_model.num_engines:10.1f}"f"{segTH['drag_lb']:8.1f}"f"{segTH['fuel_flow_lbphr']:12.1f}"
                     f"{segTH['Ps_theor_fpm']:12.1f}"
                 )

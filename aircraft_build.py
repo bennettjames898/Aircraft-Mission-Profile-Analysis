@@ -38,7 +38,7 @@ class Aircraft:
         self.zero_fuel_weight_lb = self.operating_empty_weight_lb + self.payload_weight_lb
         self.gross_weight_lb = self.zero_fuel_weight_lb + self.fuel_weight_lb
         
-    # Convert current mass (kg) to weight force (N).1
+    # Convert current mass (kg) to weight force (N).
     def weight_n(self, weight_kg: float) -> float:
         return weight_kg * convert.G0
 
@@ -66,14 +66,14 @@ class Aircraft:
     # Fuel flow (kg/s) to maintain steady level cruise
     def fuel_flow_kg_s(self, weight_kg: float, altitude_m: float, mach: float) -> float:
         thrust_needed = self.thrust_required_n(weight_kg, altitude_m, mach)
-        max_thrust = self.propulsion_model.max_thrust(altitude_m, mach)
+        max_thrust = self.propulsion_model.max_thrust(altitude_m, mach, self.DISAC)
         if thrust_needed > max_thrust:
             raise RuntimeError(
                 f"Thrust required ({thrust_needed:.0f} N) > max thrust ({max_thrust:.0f}) "
                 f"at ALT = {altitude_m:.0f}m, MACH = {mach:.2f}.\n"
                 f"Aircraft cannot sustain this flight condition."
             )
-        return self.propulsion_model.fuel_flow(thrust_needed, altitude_m, mach)
+        return self.propulsion_model.fuel_flow(thrust_needed, altitude_m, mach, self.DISAC)
 
     def lift_to_drag(self, weight_kg: float, altitude_m: float, mach: float) -> float:
         cl = self.required_cl(weight_kg, altitude_m, mach)

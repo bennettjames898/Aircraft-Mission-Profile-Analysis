@@ -153,10 +153,6 @@ def solve_cruise_range(
 
 
 #----------------------------- WRAPPER FUNC -----------------------------------
-    """
-    Wrapper that is quivalent to calling 'solve_cruise_range' with a 
-    'build_segments_fn' that inserts a ConstantAltCruiseSegment().
-    """
 def solve_cruise_range_iterate(
     saveDir:                str,
     aircraft:               Aircraft,
@@ -168,7 +164,10 @@ def solve_cruise_range_iterate(
     range_bracket_nm:       Tuple[float, float] = (0, 6000),
     converge_tol:           float = 0.1,
     ) -> MaxRangeIteratedResult:
-
+    """
+    Wrapper that is equivalent to calling 'solve_cruise_range' with a
+    'build_segments_fn' that inserts a ConstantAltCruiseSegment().
+    """
     # This def is called by the iteration with various 'range_nm' values
     def build(range_nm: float) -> List[MissionSegment]:
         nonlocal MissionSegmentList

@@ -187,10 +187,6 @@ def solve_min_fuel(
     )
 
 #----------------------------- WRAPPER FUNC -----------------------------------
-    """
-    Wrapper that is equivalent to calling 'solve_min_fuel' with a segment list
-    that already has a fixed-range ConstantAltCruiseSegment() inserted.
-    """
 def solve_min_fuel_iterate(
     saveDir:                str,
     aircraft:               Aircraft,
@@ -199,7 +195,10 @@ def solve_min_fuel_iterate(
     fuel_bracket_lb:        Tuple[float, float] = (0, 100000),
     converge_tol:           float = 0.1,
     ) -> MinFuelIteratedResult:
-    
+    """
+    Wrapper that is equivalent to calling 'solve_min_fuel' with a segment list
+    that already has a fixed-range ConstantAltCruiseSegment() inserted.
+    """
     FullMissionSegments = MissionSegmentList.copy()
     
     return solve_min_fuel(

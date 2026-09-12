@@ -4,9 +4,19 @@ Propulsion model interface.
 Same philosophy as 'aero_model.py'. The mission code asks for thrust
 available and fuel flow at a flight condition + throttle setting, and
 does not care whether that comes from a real engine deck, a scaled
-manufacturer chart, or (as here) a simple TSFC-based approximation.
+manufacturer chart, or one of the conceptual-design approximations
+implemented here.
+
+Two implementations are provided:
+  - SimpleTurbofan: constant-TSFC, thrust-producing engine. Fuel flow
+    tracks thrust directly and is Mach independent.
+  - SimpleTurboprop: constant-PSFC, power-producing engine driving a
+    propeller. Thrust is derived from shaft power via a propeller
+    efficiency model (advance ratio + helical tip-Mach compressibility).
+    See its class docstring for the fullbderivation and known simplifications.
 """
 
+import math
 from abc import ABC, abstractmethod
 import unit_conversions as convert
 
@@ -74,108 +84,87 @@ class SimpleTurbofan(PropulsionModelBase):
     def idle_thrust(self, altitude_m: float, mach: float, DISAC: float = 0) -> float:
         return self.idle_thrust_fraction * self.max_thrust(altitude_m, mach, DISAC)
 
-    def fuel_flow(self, thrust_n: float, altitude_m: float, mach: float) -> float:
+    def fuel_flow(self, thrust_n: float, altitude_m: float, mach: float, DISAC: float) -> float:
         # Simplification: Constant TSFC model: fuel flow scales linearly with thrust.
         # (Real engines show TSFC variation with altitude/Mach/throttle)
         return thrust_n * self.tsfc
 
 class SimpleTurboprop(PropulsionModelBase):
     """
-    Simplified turboprop model.
+    Simplified turboprop model, requiring inputs for engine performance and 
+    propeller geometry.
  
-    The fundamental difference from SimpleTurbofan is that a turboprop is a
-    POWER producing engine, not a thrust producing one. The core delivers
-    shaft power to a propeller, and the propeller converts that power into
-    thrust:
+    Propeller-converted thrust from a shaft-power engine:
  
         T = eta_prop * P_shaft / V
  
-    so at constant power, thrust falls off roughly as 1/V. That single
-    relationship is why turboprops dominate at low speed and lose to turbofans
-    in the cruise, and it is the reason this class takes propeller geometry as
-    an input while SimpleTurbofan does not.
+    At constant power, thrust falls as a facotr of 1/V. This relationship is 
+    why turboprops dominate at low speed and lose to turbofans in cruise, 
+    and is the reason this class takes propeller geometry as an input.
  
-    SPEED EFFECTS ON EFFICIENCY (three separate mechanisms, all modeled here)
+    SPEED EFFECTS ON EFFICIENCY (Modeled in this class)
     -------------------------------------------------------------------------
-    1. THRUST LAPSE WITH SPEED (T = eta*P/V). Not an efficiency loss at all,
-       just the power-to-thrust conversion. Dominates the low speed end.
+    1. THRUST LAPSE WITH SPEED T = eta*P/V [N]
  
-    2. ADVANCE RATIO, J = V / (n*D)   [n = rev/s, D = diameter]
+    2. ADVANCE RATIO J = V / (n*D)   [n = rev/s, D = diameter]
        The nondimensional ratio of forward distance per revolution to
-       propeller diameter, and the primary parameter a propeller's efficiency
-       is mapped against. Efficiency peaks near a design J and falls away
-       either side, so a propeller sized for cruise is inefficient on takeoff
-       and vice versa. Modeled here as a parabola peaking at
-       'advance_ratio_opt', see the honesty note below.
+       propeller diameter. This parameter directly impacts prop efficiency. 
+       Efficiency peaks near a design J and falls away parabolicallyas modeled.
  
     3. HELICAL TIP MACH NUMBER
            M_tip = sqrt(V^2 + (pi*n*D)^2) / a
-       The blade tip sees the VECTOR SUM of the aircraft's forward velocity
-       and the tip's own rotational velocity, so the tip goes transonic long
-       before the airframe does. Once M_tip passes roughly 0.85-0.90, shock
-       losses cut efficiency sharply. This is the hard limit on turboprop
-       cruise speed and the reason high speed turboprop designs use reduced
-       RPM, smaller diameters, and swept "scimitar" blades.
+       The blade tip sees the vector sum of the aircraft's forward velocity
+       and the tip's own rotational velocity, causing the tip to go transonic 
+       long before the aircraft. Once M_tip passes roughly 0.85-0.90, shock
+       losses cut efficiency sharply.
  
-       Note the coupling: increasing D or RPM raises static thrust but also
-       raises M_tip, so propeller sizing is a genuine trade rather than a
-       "bigger is better" choice. Both directions are represented here.
- 
-    STATIC / LOW SPEED THRUST
+    STATIC & LOW SPEED THRUST
     -------------------------------------------------------------------------
     T = eta*P/V is singular at V = 0, so it cannot be used on the ground.
-    Actuator disk (momentum) theory gives the static limit instead:
+    Actuator disk (momentum) theory gives the static limit instead 
+    (NASA Glenn, https://www.grc.nasa.gov/WWW/K-12/airplane/propth.html):
  
-        T_static = (2 * rho * A_disk * (FM * P)^2)^(1/3)
+        T_static = (2 * rho * A_disk * P^2)^(1/3)
  
     where A_disk is the propeller swept area and FM is the figure of merit
     (a real propeller's fraction of the ideal momentum theory result, ~0.7-0.8).
-    The model reports min(T_static, eta*P/V), so the momentum limit governs at
-    low speed and the power/efficiency relation governs in the cruise.
+    The model reports min(T_static, eta*P/V), causing the momentum limit to 
+    drive at low speed and the power/efficiency relation drives in cruise.
  
-    KNOWN SIMPLIFICATIONS (flagged, not hidden)
+    SIMPLIFICATIONS
     -------------------------------------------------------------------------
-      - The eta(J) parabola is a TUNABLE CURVE FIT, not blade element theory
-        or a real propeller map. Its shape is qualitatively right (single
-        peak, falls off either side) but the specific numbers are inputs to
-        be calibrated, not predictions. Items 1 and 3 above, by contrast,
-        are first principles relations.
-      - Constant speed propellers are assumed to hold 'prop_rpm' exactly.
-        Real governors vary RPM by flight condition and power setting.
-      - 'num_blades' is a coarse parametric handle on peak efficiency
-        (more blades, slightly more interference loss) rather than real
-        blade count physics. It does not currently affect power absorption
-        limits, which is the main reason blade count is chosen in practice.
-      - Residual jet thrust from the core exhaust (typically ~5-10% of total
-        turboprop thrust) is NOT modeled. Thrust here is propeller only.
-      - Flat rating is not modeled. Real turboprops hold constant shaft power
-        up to a corner altitude/temperature, this model lapses immediately.
+      - The eta(J) parabola is a tunable curve fit (using 'advance_ratio_peak' 
+        and 'advance_ratio_width'). Its shape is qualitatively accurate to 
+        empirical data (single peak & falls off either side).
+      - This model assumes a constant speed propellers, 'prop_rpm' is constant 
+        throughout the mission profile.
+      - 'num_blades' has no effect on the model unless a blade number 
+        efficiency penalty is specified in 'eta_penalty_per_blade'. This term 
+        applies a linear efficiency penalty relative to a 4-blade reference, 
+        and defaults to 0. This term is intednded as a calibration slot for 
+        the simplified model.
+      - Residual jet thrust from the core exhaust is NOT modeled.
+      - Flat thrust rating is not modeled. Real turboprops hold constant shaft power
+        up to some altitude/temperature, this model lapses immediately.
       - PSFC is constant, as TSFC is in SimpleTurbofan.
       - Static thrust is RPM independent, because momentum theory only sees
-        disk area and power. Real static thrust does vary with RPM through
-        blade loading.
+        disk area and power.
+      - Static power-thrust conversion is assumed perfect.
  
-    USING THIS MODEL FOR PROPELLER SIZING STUDIES  (read before sweeping)
+    USING THIS MODEL FOR PROPELLER SIZING STUDIES
     -------------------------------------------------------------------------
-    'advance_ratio_opt' represents the J a given propeller was DESIGNED
+    'advance_ratio_opt' represents the J a given propeller was designed
     around (its pitch/twist distribution). It is an independent input, so
-    sweeping diameter or RPM on their own implicitly asks "what if I spun the
-    SAME propeller faster/slower", and J moves away from its design point.
- 
-    That is a real effect and often the one wanted. But it means a naive RPM
-    sweep will show low RPM as bad, which contradicts the fact that real high
-    speed turboprop designs DO use reduced tip speeds. The resolution is that
-    a real low RPM design is re-pitched for its new operating point, so
-    'advance_ratio_opt' should be moved with it. Since J = V/(n*D), holding
-    the design point fixed while changing n or D means scaling
-    advance_ratio_opt by the same ratio:
- 
+    sweeping diameter or RPM on independently asks, "what if the SAME propeller 
+    spun faster/slower?", moving J away from its design point. Sizing 
+    studies should recalculate 'advance_ratio_opt' using the following:
+        
         J_opt_new = J_opt_old * (n_old * D_old) / (n_new * D_new)
  
-    Sweep the geometry ALONE to study off design behavior of one propeller.
-    Sweep the geometry AND advance_ratio_opt together to compare separately
-    optimized propeller designs. The tip Mach term is physical either way and
-    needs no such adjustment.
+    to ensure each tested prop is "re-pitched" for its new operating point. 
+    Sweep the geometry alone to study off design behavior of one propeller.
+    Sweep the geometry and advance_ratio_opt together to compare separately
+    optimized propeller designs.
     """
     name = "SimpleTurboprop"
     def __init__(
@@ -183,35 +172,33 @@ class SimpleTurboprop(PropulsionModelBase):
         sea_level_power_shp:    float,          # PER ENGINE, shaft horsepower
         psfc_lb_per_shphr:      float,          # FuelFlow/Power [lb/(hr*shp)]
         prop_diameter_ft:       float,          # propeller diameter
-        prop_rpm:               float,          # propeller shaft RPM (post gearbox)
+        prop_rpm:               float,          # propeller shaft RPM
         num_blades:             int = 4,
+        eta_penalty_per_blade:  float = 0.0,    # approximated impact of increased blade count on overall prop efficiency
         num_engines:            int = 2,
         lapse_exponent:         float = 0.8,    # power lapse w/ density ratio
         idle_power_fraction:    float = 0.05,   # % of max power for idle approximation
         eta_prop_max:           float = 0.87,   # peak propeller efficiency
-        advance_ratio_opt:      float = 1.6,    # J at which eta peaks
+        advance_ratio_peak:     float = 1.6,    # J at which eta peaks
         advance_ratio_width:    float = 1.8,    # J offset at which eta falls to 0
         tip_mach_crit:          float = 0.88,   # M_tip where compressibility losses start
         tip_mach_loss_coeff:    float = 25.0,   # severity of the tip compressibility loss
-        figure_of_merit:        float = 0.75,   # static thrust vs ideal momentum theory
     ):
         self.modelID                = self.name
         self.sea_level_power_w      = sea_level_power_shp * 745.699872        # shp -> W
-        # psfc [lb/(shp*hr)] -> [kg/(W*s)]
-        self.psfc                   = convert.lb_to_kg(psfc_lb_per_shphr) / (745.699872 * 3600)
+        self.psfc                   = convert.lb_to_kg(psfc_lb_per_shphr) / (745.699872 * 3600) # [lb/(shp*hr)] -> [kg/(W*s)]
         self.prop_diameter_m        = convert.ft_to_m(prop_diameter_ft)
-        self.prop_rps               = prop_rpm / 60.0                          # rev/s
-        self.prop_disk_area_m2      = math.pi * (self.prop_diameter_m / 2.0) ** 2
+        self.prop_rps               = prop_rpm / 60 # rev/s
+        self.prop_disk_area_m2      = math.pi * (self.prop_diameter_m/2)**2
         self.num_blades             = num_blades
         self.num_engines            = num_engines
         self.lapse_exponent         = lapse_exponent
         self.idle_power_fraction    = idle_power_fraction
         self.eta_prop_max           = eta_prop_max
-        self.advance_ratio_opt      = advance_ratio_opt
+        self.advance_ratio_peak     = advance_ratio_peak
         self.advance_ratio_width    = advance_ratio_width
         self.tip_mach_crit          = tip_mach_crit
         self.tip_mach_loss_coeff    = tip_mach_loss_coeff
-        self.figure_of_merit        = figure_of_merit
         self.inputs                 = self.__dict__ # collect input terms for output files
  
     #--------------------------- PROPELLER TERMS ------------------------------
@@ -222,9 +209,8 @@ class SimpleTurboprop(PropulsionModelBase):
  
     def helical_tip_mach(self, altitude_m: float, mach: float, DISAC: float = 0) -> float:
         """
-        Mach number seen by the blade TIP, the vector sum of forward flight
-        speed and tip rotational speed. Always higher than aircraft Mach, and
-        the parameter that actually limits turboprop cruise speed.
+        Mach number seen by the blade tip, the vector sum of forward flight
+        speed and tip rotational speed. Always higher than aircraft Mach.
         """
         from atmosphere import isa_conditions
  
@@ -240,27 +226,29 @@ class SimpleTurboprop(PropulsionModelBase):
         Combines the advance ratio term (curve fit) with the helical tip Mach
         compressibility term (physical) and the blade count handle.
         """
-        # --- Advance ratio term: parabola peaking at advance_ratio_opt ---
+        # --- Advance ratio term: parabola peaking at advance_ratio_peak ---
         J           = self.advance_ratio(altitude_m, mach, DISAC)
-        eta_J       = 1.0 - ((J - self.advance_ratio_opt) / self.advance_ratio_width) ** 2
-        eta_J       = max(eta_J, 0.0)
+        eta_J       = 1 - ((J - self.advance_ratio_peak) / self.advance_ratio_width) ** 2
+        eta_J       = max(eta_J, 0)
  
         # --- Compressibility term: cubic loss above tip_mach_crit ---
         # Same functional form as SimpleDragPolar's wave drag rise, for
         # consistency of convention across the models.
         M_tip       = self.helical_tip_mach(altitude_m, mach, DISAC)
-        eta_comp    = 1.0
+        eta_comp    = 1
         if M_tip > self.tip_mach_crit:
-            eta_comp = 1.0 - self.tip_mach_loss_coeff * (M_tip - self.tip_mach_crit) ** 3
-            eta_comp = max(eta_comp, 0.0)
+            eta_comp = 1-(self.tip_mach_loss_coeff*(M_tip-self.tip_mach_crit)**3)
+            eta_comp = max(eta_comp, 0)
  
-        # --- Blade count handle (coarse, see class docstring) ---
-        blade_factor = 1.0 - 0.010 * (self.num_blades - 4)
+        # --- Blade count efficiency factor: OFF unless specified ---
+        # eta_penalty_per_blade is a calibration input, defaulting to 0, 
+        # so num_blades has no effect on efficiency unless a value is 
+        # provided. See the class docstring for why a scalar cannot represent 
+        # blade count properly.
+        blade_factor = 1-(self.eta_penalty_per_blade*(self.num_blades-4))
  
         eta = self.eta_prop_max * eta_J * eta_comp * blade_factor
-        # Floor prevents divide-by-zero downstream. An eta this low already
-        # means the propeller is doing effectively nothing useful.
-        return max(eta, 1e-3)
+        return max(eta, 1e-3) # Floor prevents divide-by-zero downstream.
  
     #----------------------------- POWER TERMS --------------------------------
     def max_power_w(self, altitude_m: float, DISAC: float = 0) -> float:
@@ -273,17 +261,40 @@ class SimpleTurboprop(PropulsionModelBase):
  
     def _static_thrust_n(self, power_w: float, altitude_m: float, DISAC: float = 0) -> float:
         """
-        Actuator disk static thrust for a given shaft power:
-            T = (2 * rho * A * (FM*P)^2)^(1/3)
+        Actuator disk (Rankine-Froude momentum theory) static thrust for a
+        given shaft power:
+ 
+            T = (2 * rho * A * P^2)^(1/3)
+ 
+        DERIVATION
+        ---------------------------------------------------------------------
+        For a disk of area A in still air, with induced velocity vp at the
+        prop disk and a far wake velocity of 2*vp:
+ 
+            mass flow through the disk - mdot = rho * A * vp
+            thrust --------------------- T = mdot * (2*vp) = 2 * rho * A * vp^2
+            ideal power at the disk ---- P_ideal = T * vp
+ 
+        Solving the thrust relation for vp = sqrt(T / (2*rho*A)) and
+        substituting into the power relation gives P_ideal = T^1.5 /
+        sqrt(2*rho*A), which rearranges to the expression above. The
+        fuel_flow() method inverts exactly this relation to recover shaft
+        power from a commanded thrust.
+ 
+        SOURCES
+        ---------------------------------------------------------------------
+          - MIT OpenCourseWare 2.611, actuator disk notes
+          - NASA Glenn, Propellor Analysis 
+            (https://www.grc.nasa.gov/WWW/K-12/airplane/propanl.html)
         """
         from atmosphere import isa_conditions
  
         rho     = isa_conditions(altitude_m, DISAC)["density_kg_m3"]
         A_total = self.prop_disk_area_m2 * self.num_engines
-        return (2.0 * rho * A_total * (self.figure_of_merit * power_w) ** 2) ** (1.0 / 3.0)
+        return (2 * rho * A_total * (power_w)**2)**(1/3)
  
     #---------------------------- BASE INTERFACE ------------------------------
-    def _thrust_from_power(self, power_w: float, altitude_m: float, mach: float, DISAC: float = 0) -> float:
+    def _thrust_from_power(self, power_w: float, altitude_m: float, mach: float, DISAC: float) -> float:
         """
         Convert available shaft power to thrust, taking whichever of the two
         limits binds:
@@ -308,11 +319,11 @@ class SimpleTurboprop(PropulsionModelBase):
         power_w = self.idle_power_fraction * self.max_power_w(altitude_m, DISAC)
         return self._thrust_from_power(power_w, altitude_m, mach, DISAC)
  
-    def fuel_flow(self, thrust_n: float, altitude_m: float, mach: float) -> float:
+    def fuel_flow(self, thrust_n: float, altitude_m: float, mach: float, DISAC: float) -> float:
         """
         Fuel flow (kg/s) for a commanded thrust.
  
-        Fuel burn tracks SHAFT POWER, not thrust, so the thrust model above is
+        Fuel burn tracks power, not thrust, so the thrust model is
         inverted to recover the power the propeller must be absorbing. Because
         _thrust_from_power takes the MINIMUM of two increasing functions of
         power, the inverse takes the MAXIMUM of their two inverses.
@@ -321,20 +332,16 @@ class SimpleTurboprop(PropulsionModelBase):
         speeds up (power = thrust x velocity), the opposite of the constant
         TSFC turbofan behavior in SimpleTurbofan, where fuel flow tracks
         thrust directly and is speed independent.
- 
-        Note DISAC is absent here to match the PropulsionModelBase interface,
-        so a standard day is assumed for the density used in the static
-        inversion. SimpleTurbofan.fuel_flow has the same limitation.
         """
         from atmosphere import isa_conditions
  
         if thrust_n <= 0:
             return 0.0
  
-        # Invert the static (momentum theory) branch:  P = T^1.5 / (FM * sqrt(2*rho*A))
-        rho             = isa_conditions(altitude_m, 0)["density_kg_m3"]
+        # Invert the static (momentum theory) branch:  P = T^1.5 / sqrt(2*rho*A)
+        rho             = isa_conditions(altitude_m, DISAC)["density_kg_m3"]
         A_total         = self.prop_disk_area_m2 * self.num_engines
-        P_from_static   = thrust_n ** 1.5 / (self.figure_of_merit * math.sqrt(2.0 * rho * A_total))
+        P_from_static   = thrust_n**1.5 / math.sqrt(2 * rho * A_total)
  
         # Invert the propeller branch:  P = T*V / eta
         tas = convert.mach_to_tas(mach, altitude_m, 0)
@@ -350,14 +357,14 @@ class SimpleTurboprop(PropulsionModelBase):
  
 #------------------------------ DEBUGGING ------------------------------------- 
 if __name__ == "__main__":
+    DISAF = 0 # Delta standard conditions in degF
  
     engine = SimpleTurbofan(
         sea_level_thrust_lbf = 27000,  # ~27,000 lbf per engine, x2
         tsfc_lb_per_lbfhr    = 0.62,   # ~0.62 lb/lbf/hr, typical turbofan cruise TSFC
         num_engines          = 2,
     )
-    DISAF = 0 # Delta standard conditions in degF
- 
+    
     print(f"{'Alt (ft)':>10} {'Mach':>6} {'Max Thrust (N)':>16} {'Fuel Flow (kg/s)':>18}")
     for alt_ft, mach in [(0, 0.3), (35000, 0.78), (39000, 0.78)]:
         alt_m   = convert.ft_to_m(alt_ft)
@@ -366,18 +373,17 @@ if __name__ == "__main__":
         print(f"{alt_ft:>10} {mach:>6.2f} {t_max:>16.1f} {WF:>18.4f}")
  
     # --- Turboprop: ATR/Dash-8 class, ~2750 shp per engine ---
-    # Sanity checks to look for in the sweep below:
+    # Checks to look for in the sweep below:
     #   - Thrust falls monotonically with Mach (T = eta*P/V), unlike the
-    #     turbofan above. This is the defining turboprop behavior.
+    #     turbofan above.
     #   - eta peaks at advance_ratio_opt (J = 1.6 by default) and falls off
     #     either side.
     #   - M_tip is well above aircraft Mach at all times and goes transonic
-    #     around M0.55-0.65, collapsing eta. That is the turboprop cruise
-    #     speed limit, and it is why the fast end of this table is unusable.
+    #     around M0.55-0.65, collapsing eta.
     prop = SimpleTurboprop(
         sea_level_power_shp = 2750,   # shp per engine
-        psfc_lb_per_shphr   = 0.50,   # typical modern turboprop cruise PSFC
-        prop_diameter_ft    = 13.0,
+        psfc_lb_per_shphr   = 0.5,    # typical modern turboprop cruise PSFC
+        prop_diameter_ft    = 13,
         prop_rpm            = 1200,
         num_blades          = 6,
         num_engines         = 2,
