@@ -2,7 +2,222 @@
 Mission segment classes.
 
 Each segment's `run()` method returns a SegmentResult and the ending
-aircraft weight, so segments can be chained by Mission (see mission.py).
+aircraft weight. Each segment below is built, then handed to 
+Mission(aircraft, segments, saveDir) in flight order. Mission.run() calls 
+each segment's run(aircraft, weight_kg) feeds the ending weight into the 
+next.
+
+All constructor arguments are in imperial units (ft, lb, kt, min). Segments 
+compute internally in SI. 
+
+===============================================================================
+ALTITUDE INHERITANCE (user input '-1' for a starting altitude)
+===============================================================================
+Every segment that takes an altitude (AccelDecelSegment, ConstantAltCruiseSegment, 
+LoiterSegment, ClimbSegment, DescentSegment) will accept -1 in place of a real 
+altitude to mean "start at the altitude the previous segment ended at."
+
+    ClimbSegment(start_altitude_ft=1500, end_altitude_ft=35000, ...),
+    AccelDecelSegment(altitude_ft=-1, start_mach=0.78, end_mach=0.85, ...),
+    ConstantAltCruiseSegment(altitude_ft=-1, mach=0.85, range_nm=1200, ...),
+
+SOURCES OF ERROR
+  - The FIRST segment in a mission can not use -1 (there is no previous
+    segment to inherit from). Mission.run() raises ValueError:
+        "Segment 0 (<name>) must have an explicit altitude stated."
+  - Any altitude input other than -1 that is negative is rejected outright
+    (ValueError). The one exception is CommonGammaSegment, where ANY 
+    negative value (not just -1) is a valid, different input (see 
+    ClimbSegment/DescentSegment below).
+  - CruiseClimbSegment has no altitude input at all (it solves altitude from
+    a commanded Ps every step) and does not support -1. A later segment can
+    still inherit ITS ending altitude.
+
+
+===============================================================================
+GroundOps(duration_min, throttle_set_pct)
+===============================================================================
+Ground fuel burn (e.x. taxi, APU, run-up) at a fixed altitude/Mach = 0 for a 
+fixed duration. No distance credited.
+
+  duration_min ----- Minutes on the ground.
+  throttle_set_pct - 0-1, interpolated linearly between idle and max static 
+                     thrust to pick the fuel flow used.
+
+SOURCES OF ERROR
+  - throttle_set_pct outside [0, 1] will raise a ValueError if improper 
+    percentages are used.
+  - A propulsion model that isn't well-behaved at V=0 (e.g. a turboprop) will 
+    surface here first.
+
+
+===============================================================================
+AccelDecelSegment(altitude_ft, start_mach, end_mach, num_steps=100)
+===============================================================================
+Level flight speed change at constant altitude, integrated over Mach via RK4. 
+Full thrust if accelerating, idle thrust if decelerating.
+
+  altitude_ft - altitude for the segment. Accepts -1 (see ALTITUDE INHERITANCE).
+  start_mach, end_mach
+                Must differ. Direction (start_mach vs end_mach) is what
+                selects accelerating vs decelerating.
+  num_steps --- RK4 step count over the Mach range. More steps = smoother
+                history / slightly better accuracy, at the cost of runtime.
+
+SOURCES OF ERROR
+  - ValueError at construction if start_mach == end_mach.
+  - ValueError during run() ("Cannot accelerate: Insufficient thrust...")
+    if max thrust does not exceed drag anywhere along the Mach sweep. Usually
+    means the target end_mach is unreachable at the altitude/weight.
+  - ValueError during run() ("Cannot decelerate: Too high idle thrust...")
+    if idle thrust exceeds drag.
+
+
+===============================================================================
+ConstantAltCruiseSegment(mach, range_nm, altitude_ft, num_steps=100)
+===============================================================================
+Constant altitude, constant Mach cruise for a fixed distance, integrated over
+range via RK4 on dW/dx (Breguet's Range Eq. differential form).
+
+  mach -------- Cruise Mach number (constant for the whole segment).
+  range_nm ---- Distance to fly.
+  altitude_ft - Cruise altitude. Accepts -1 (see ALTITUDE INHERITANCE).
+  num_steps --- RK4 step count over the range.
+
+SOURCES OF ERROR
+  - RuntimeError from Aircraft.fuel_flow_kg_s() ("Thrust required (...) >
+    max thrust (...). Aircraft cannot sustain this flight condition.") if
+    the aircraft cannot hold this Mach/altitude at the current weight.
+
+
+===============================================================================
+LoiterSegment(mach, duration_min, altitude_ft, num_steps=100)
+===============================================================================
+Constant altitude, constant Mach for a fixed time (same governing ODE as 
+cruise, integrated over time instead of range). No distance is credited to the 
+mission, so this segment is intended for holds/reserves.
+
+  mach ---------- Loiter Mach number.
+  duration_min -- Minutes to hold.
+  altitude_ft --- Loiter altitude. Accepts -1 (see ALTITUDE INHERITANCE).
+  num_steps ----- RK4 step count over the duration.
+
+SOURCES OF ERROR
+  - Same RuntimeError as ConstantAltCruiseSegment ("...Aircraft cannot
+    sustain this flight condition.") if thrust required exceeds max thrust
+    at this altitude/Mach/weight.
+
+
+===============================================================================
+ClimbSegment(start_altitude_ft, end_altitude_ft, schedule, num_steps=100,
+             gamma_min_deg=0.05, gamma_max_deg=25, ps_search_steps=None,
+             ps_search_ceiling_ft=60000)
+===============================================================================
+Max thrust climb between altitudes, integrated over altitude via RK4. At every 
+altitude step, the flight-path angle (gamma) that trims 
+T - D = W sin(gamma) * ka is solved with brentq (solver_climb_descent.py),
+where `ka` corrects for TAS changing with altitude on non-constant-Mach schedules.
+
+  start_altitude_ft - Accepts -1 (see ALTITUDE INHERITANCE).
+  end_altitude_ft --- EITHER a target altitude (>= 0) OR a Ps-ceiling flag:
+                          end_altitude_ft =  35000   climb to 35,000 ft
+                          end_altitude_ft =   -300   climb until specific
+                                                      excess power decays to
+                                                      300 ft/min
+                        A negative value is read as -Ps_target_fpm. Because 
+                        the eventual ceiling altitude depends on how much 
+                        fuel is burned getting there, this runs a brentq 
+                        search (see ps_search_steps/ps_search_ceiling_ft) 
+                        around the climb itself.
+  schedule ---------- A SpeedScheduleBase instance (speed_schedule.py) or a
+                      plain float, treated as constant Mach:
+                          ClimbSegment(..., schedule=0.78)                  # constant Mach
+                          ClimbSegment(..., schedule=CASMachSchedule(...))  # CAS->Mach
+  num_steps --------- RK4 step count over the altitude range (for a
+                      Ps-ceiling climb, the step count used by the trial 
+                      climbs too).
+  gamma_min_deg/gamma_max_deg
+                      Search bracket (deg) for the trimmed climb angle.
+                      gamma_min_deg near 0 avoids a divide-by-zero in
+                      dt/dh = 1/(TAS*sin(gamma)). Increase it a 
+                      "Rate of climb ~0" error appears. gamma_max_deg caps
+                      unrealistically steep solutions. High thrust scenarios
+                      will be capped at this gamma.
+  ps_search_steps --- Step count used by the trial climbs inside a Ps-ceiling
+                      search (end_altitude_ft < 0 only). Defaults to
+                      num_steps so the search matches the final reported
+                      climb's discretization.
+  ps_search_ceiling_ft
+                      Upper altitude limit for a Ps-ceiling search.
+                      Raise this if a "could not bracket" error appears
+                      for an aircraft with a high ceiling.
+
+SOURCES OF ERROR
+  - TrimSolverError ("No positive climb angle achievable...") max thrust
+    does not exceed drag at gamma_min_deg.
+  - ValueError ("Rate of climb/descent numerically ~0...") the solved
+    gamma is so close to zero that dt/dh blows up. Usually means
+    gamma_min_deg is set too low.
+  - Ps-ceiling search only (end_altitude_ft < 0), all TrimSolverError:
+      - "...already at or below the ceiling at the start altitude" the
+        aircraft can't climb at the start condition.
+      - "...exceeds the ceiling at ps_search_ceiling_ft. Increase
+        ps_search_ceiling_ft.".
+      - "Could not bracket the ... ceiling below ps_search_ceiling_ft...".
+
+
+===============================================================================
+DescentSegment(start_altitude_ft, end_altitude_ft, schedule, num_steps=100,
+               gamma_min_deg=0.05, gamma_max_deg=15, ps_search_steps=None,
+               ps_search_ceiling_ft=60000)
+===============================================================================
+Idle thrust descent, identical in structure to ClimbSegment.
+
+SOURCES OF ERROR
+  - TrimSolverError ("No descending trim found: thrust exceeds drag...")
+    idle thrust exceeds drag at the shallowest allowed angle (gamma_min_deg).
+  - Same "Rate of climb/descent numerically ~0..." ValueError as ClimbSegment
+    if the solved (negative) gamma is too close to zero.
+
+
+===============================================================================
+CruiseClimbSegment(mach, range_nm, ps_target_fpm=300,
+                    altitude_bracket_ft=(1000, 55000), num_steps=100,
+                    max_continuous_fraction=1.0, include_climb_term=True)
+===============================================================================
+Cruise-climb integrated over range like ConstantAltCruiseSegment, but instead
+of a fixed altitude, every RK4 stage solves (via brentq) for the altitude
+that holds an input specific excess power (following the MIL-STD-3013 
+cruise-climb convention), so the aircraft drifts upward as weight drops rather 
+than flying level. There is no altitude input, this segment does NOT support -1
+altitude inheritance. A later segment can inherit its ending altitude.
+
+  mach ------------------ Cruise-climb Mach.
+  range_nm -------------- Cruise distance.
+  ps_target_fpm --------- Target specific excess power. Must be > 0.
+  altitude_bracket_ft --- (lo, hi) search bracket brentq solves the altitude
+                          within at every step. Must bracket the true
+                          altitude at every weight flown in the segment.
+  num_steps ------------- RK4 step count over the range.
+  max_continuous_fraction Fraction of propulsion_model.max_thrust() treated
+                          as MAX CONTINUOUS thrust for the Ps calculation.
+                          1.0 (default) reproduces the Ps_theor_fpm
+                          convention reported by the other segments.
+  include_climb_term ---- If True (default), adds the small W*sin(gamma)
+                          drift-up term to the required-thrust balance (an
+                          extra brentq altitude solve per RK4 stage, to get
+                          dh/dW). If False, treats the climb as level at each
+                          instant (T = D), which is the classical textbook
+                          simplification and slightly faster to run.
+
+SOURCES OF ERROR
+  - CruiseClimbError at construction if ps_target_fpm <= 0.
+  - CruiseClimbError during run() ("Cannot achieve Ps = ... at <bracket
+    lo> ft...") the aircraft can't hold the commanded Ps at the bottom 
+    of altitude_bracket_ft.
+  - CruiseClimbError during run() ("Exceeding Ps = ... at the top of the
+    search bracket... Increase altitude_bracket_ft.") the aircraft has
+    more Ps than commanded at the top of the bracket.
 """
 
 from dataclasses import dataclass, field
@@ -75,6 +290,8 @@ class GroundOps(MissionSegment):
     def __init__(self, duration_min: float, throttle_set_pct: float):
         self.duration_s = duration_min * 60.0
         self.throttle_set_pct = throttle_set_pct
+        if self.throttle_set_pct < 0 | self.throttle_set_pct > 1:
+            raise ValueError("throttle_set_pct must be between 0 and 1")
         
     def run(self, aircraft: Aircraft, start_weight_kg: float) -> SegmentResult:
         weight_kg   = start_weight_kg

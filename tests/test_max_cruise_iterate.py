@@ -1,5 +1,5 @@
 """
-Validation tests for max_cruise_solver.py.
+Validation tests for solver_mission_range.py.
 """
 
 import sys

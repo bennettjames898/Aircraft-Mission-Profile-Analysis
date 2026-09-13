@@ -191,6 +191,7 @@ class SimpleTurboprop(PropulsionModelBase):
         self.prop_rps               = prop_rpm / 60 # rev/s
         self.prop_disk_area_m2      = math.pi * (self.prop_diameter_m/2)**2
         self.num_blades             = num_blades
+        self.eta_penalty_per_blade  = eta_penalty_per_blade
         self.num_engines            = num_engines
         self.lapse_exponent         = lapse_exponent
         self.idle_power_fraction    = idle_power_fraction
@@ -369,7 +370,7 @@ if __name__ == "__main__":
     for alt_ft, mach in [(0, 0.3), (35000, 0.78), (39000, 0.78)]:
         alt_m   = convert.ft_to_m(alt_ft)
         t_max   = engine.max_thrust(alt_m, mach, convert.DISAF_to_C(DISAF)) # N
-        WF      = engine.fuel_flow(t_max, alt_m, mach) # kg/s
+        WF      = engine.fuel_flow(t_max, alt_m, mach, convert.DISAF_to_C(DISAF)) # kg/s
         print(f"{alt_ft:>10} {mach:>6.2f} {t_max:>16.1f} {WF:>18.4f}")
  
     # --- Turboprop: ATR/Dash-8 class, ~2750 shp per engine ---
@@ -391,7 +392,7 @@ if __name__ == "__main__":
  
     print(f"\n{prop.name}: static thrust at SL = "
           f"{convert.kg_to_lb(prop.max_thrust(0, 0)/convert.G0):.0f} lbf, "
-          f"WF = {convert.kg_to_lb(prop.fuel_flow(prop.max_thrust(0,0), 0, 0))*3600:.0f} lb/hr")
+          f"WF = {convert.kg_to_lb(prop.fuel_flow(prop.max_thrust(0,0), 0, 0, 0))*3600:.0f} lb/hr")
     print(f"{'Alt (ft)':>10} {'Mach':>6} {'J':>7} {'M_tip':>8} {'eta_prop':>10} "
           f"{'Max Thrust (N)':>16} {'Fuel Flow (kg/s)':>18}")
     for alt_ft, mach in [(0, 0.20), (10000, 0.35), (20000, 0.45), (20000, 0.55), (25000, 0.65)]:
@@ -401,6 +402,6 @@ if __name__ == "__main__":
         M_tip   = prop.helical_tip_mach(alt_m, mach, DISAC)
         eta     = prop.prop_efficiency(alt_m, mach, DISAC)
         t_max   = prop.max_thrust(alt_m, mach, DISAC) # N
-        WF      = prop.fuel_flow(t_max, alt_m, mach)  # kg/s
+        WF      = prop.fuel_flow(t_max, alt_m, mach, DISAC)  # kg/s
         print(f"{alt_ft:>10} {mach:>6.2f} {J:>7.2f} {M_tip:>8.3f} {eta:>10.3f} "
               f"{t_max:>16.1f} {WF:>18.4f}")

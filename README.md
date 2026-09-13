@@ -56,7 +56,10 @@ propulsion_model.py     - Propulsion interface + simple constant-TSFC turbofan a
                           tip-Mach compressibility) implementations
 segments.py             - MissionSegment base class, GroundOps (ground fuel burn),
                           AccelDecelSegment (RK4 over Mach), ConstantAltCruiseSegment
-                          (RK4), LoiterSegment (RK4), ClimbSegment/DescentSegment (brentq)
+                          (RK4), LoiterSegment (RK4), ClimbSegment/DescentSegment (brentq
+                          gamma trim, optional Ps-ceiling end condition), CruiseClimbSegment
+                          (RK4 over range with a brentq altitude solve at each step, MIL-STD-3013
+                          style Ps-limited cruise-climb)
 speed_schedule.py       - Climb/descent speed schedules (constant Mach/TAS/CAS, CAS/Mach crossover)
 unit_conversions.py     - Collection of unit conversions used across the project
 examples/               - Runnable end-to-end mission scripts
@@ -89,6 +92,15 @@ dataset-specific code logic.
   from the schedule's `dtas_dh` at every point. See the
   references and full derivation in `solver_climb_descent.py`'s module 
   docstring (Marchman, *Aerodynamics and Aircraft Performance*, Virginia Tech)
+- **Climb/descend-to-ceiling** (`ClimbSegment`/`DescentSegment`): passing a
+  negative `end_altitude_ft` (e.g. `-300`) is read as a target specific
+  excess power in ft/min rather than a target altitude. The segment solves
+  (via a `brentq` search wrapped around the RK4 climb) for the required altitude.
+- **Cruise-climb** (`segments.py:CruiseClimbSegment`): integrated over range
+  like `ConstantAltCruiseSegment`, and at each step a brentq search finds the
+  altitude holding a commanded Ps (MIL-STD-3013 cruise-climb convention), 
+  causing the aircraft to drift upward as it burns fuel. An optional drift-up 
+  correction adds `W*sin(gamma)` to the required-thrust balance.
 - **Level-flight acceleration/deceleration** (`AccelDecelSegment`): the
   explicit T − D = m(dV/dt) force balance integrated over Mach (rather than
   altitude or distance) via RK4, at full thrust when accelerating and idle
@@ -143,9 +155,10 @@ independently-derivable reference in the corresponding test or
   based on Anderson textbook methods.
 - Missions are only ran in a single 'direction' (no radius missions, or 
   outbound/inbound legs).
-- Mission segment continuity is ignored between segments. The aircraft can 
-  'teleport' to a different flight condition between two named segments (i.e. 
-  between a ClimbSegment and a CruiseSegment).
+- Mission segment continuity is partially enforced. Altitude can be
+  carried forward automatically if the user desires (segment `start_altitude_ft`/
+  `altitude_ft = -1`), the aircraft can still 'teleport' to a different Mach
+  between two named segments.
 
 ## Future Work
 - [ ] Improved outputting & plot generation (currently ad hoc plotting)
@@ -153,7 +166,6 @@ independently-derivable reference in the corresponding test or
       read in table data from an outside source (i.e. DATCOM) to demonstrate 
 	  knowledge of iterpolated data handling.
 - [ ] Mission Segment Additions:
-        - Cruise-Climb (based on an input Ps & max continuous power setting)
         - Air Refueling (tanker or receiver) with a drag delta & transfer rate
         - Turns/Maneuvers (g loading)
 
