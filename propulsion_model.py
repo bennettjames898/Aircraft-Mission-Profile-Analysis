@@ -34,7 +34,7 @@ class PropulsionModelBase(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def fuel_flow(self, thrust_n: float, altitude_m: float, mach: float) -> float:
+    def fuel_flow(self, thrust_n: float, altitude_m: float, mach: float, DISAC: float) -> float:
         """Fuel mass flow rate (kg/s) for a given thrust setting."""
         raise NotImplementedError
 
@@ -77,7 +77,7 @@ class SimpleTurbofan(PropulsionModelBase):
         mach_factor = 1.0 - 0.25 * mach
 
         thrust_per_engine = (
-            self.sea_level_thrust_n * (density_ratio ** self.lapse_exponent) * mach_factor
+            self.sea_level_thrust_n * (density_ratio**self.lapse_exponent) * mach_factor
         )
         return self.num_engines * thrust_per_engine
 

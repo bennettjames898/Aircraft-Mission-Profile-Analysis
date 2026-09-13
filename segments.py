@@ -13,6 +13,22 @@ from aircraft_build import Aircraft
 import solver_climb_descent
 import speed_schedule
 
+def _parse_altitude_input(altitude_ft: float, class_name: str):
+    """
+    Interpret an altitude argument that may carry the inherit '-1' value.
+ 
+    Returns (altitude_m, inherits). altitude_m is None when the segment must
+    wait for the previous segment's ending altitude.
+    """
+    if altitude_ft == -1:
+        return None, True
+    if altitude_ft < 0:
+        raise ValueError(
+            f"{class_name} altitude = {altitude_ft} is not a valid altitude. "
+            f"Use -1 to inherit the previous segment's ending altitude, or "
+            f"input a real altitude in feet. Negative values other than -1 are rejected.")
+    return convert.ft_to_m(altitude_ft), False
+
 @dataclass
 class SegmentResult:
     segment_name:       str
@@ -21,7 +37,7 @@ class SegmentResult:
     fuel_burned_kg:     float
     distance_nm:        float
     time_s:             float
-    # Time-hostpry data for plotting: one entry per integration step
+    # Time-history data for plotting: one entry per integration step
     history: List[dict] = field(default_factory=list)
     # Altitude the segment started/ended at.
     start_altitude_ft: Optional[float] = None
@@ -35,6 +51,20 @@ class MissionSegment:
     name = "generic_segment"
     def run(self, aircraft: Aircraft, start_weight_kg: float) -> SegmentResult:
         raise NotImplementedError
+        
+    # ------------------------ ALTITUDE INHERITANCE ------------------------
+    # Mission.run() calls them: if needs_start_altitude() is True it passes the
+    # previous segment's end_altitude_ft to resolve_start_altitude().
+    def needs_start_altitude(self) -> bool:
+        """True if this segment was built with 'start_altitude_ft = -1'."""
+        return False
+    def resolve_start_altitude(self, altitude_ft: float) -> None:
+        """Supply the altitude this segment should start from."""
+        raise NotImplementedError(
+            f"{type(self).__name__} does not take an inheritable start altitude.")
+    def declared_start_altitude_ft(self) -> Optional[float]:
+        """This segment's start altitude if known, else None."""
+        return None
         
 class GroundOps(MissionSegment):
     """
@@ -52,7 +82,7 @@ class GroundOps(MissionSegment):
         maxFn = aircraft.propulsion_model.max_thrust(0, 0, aircraft.DISAC)
         minFn = aircraft.propulsion_model.idle_thrust(0, 0, aircraft.DISAC)
         thrust_n = ((maxFn-minFn)*self.throttle_set_pct)+minFn
-        fuel_flow_kg_s = aircraft.propulsion_model.fuel_flow(thrust_n, 0, aircraft.DISAC)
+        fuel_flow_kg_s = aircraft.propulsion_model.fuel_flow(thrust_n, 0, 0, aircraft.DISAC)
         
         weight_kg = weight_kg - fuel_flow_kg_s*self.duration_s
         
@@ -111,12 +141,26 @@ class AccelDecelSegment(MissionSegment):
  
     def __init__(self, altitude_ft: float, start_mach: float, end_mach: float, num_steps: int = 100):
         if start_mach == end_mach:
-            raise ValueError("start_mach and end_mach must differ.")
-        self.altitude_m = convert.ft_to_m(altitude_ft)
+            raise ValueError("'start_mach' and 'end_mach' must differ.")
+        self.altitude_m, self._inherit_altitude = _parse_altitude_input(altitude_ft, type(self).__name__)
         self.start_mach = start_mach
         self.end_mach = end_mach
         self.num_steps = num_steps
         self.accelerating = end_mach > start_mach
+        
+    # --- altitude inheritance (altitude is the start and the end) ---
+    def needs_start_altitude(self) -> bool:
+        return self._inherit_altitude
+    def resolve_start_altitude(self, altitude_ft: float) -> None:
+        self.altitude_m = convert.ft_to_m(altitude_ft)
+        self._inherit_altitude = False
+    def declared_start_altitude_ft(self):
+        return None if self.altitude_m is None else convert.m_to_ft(self.altitude_m)
+    def _require_altitude(self) -> None:
+        if self.altitude_m is None:
+            raise ValueError(
+                f"{type(self).__name__}.altitude was set to inherit the previous "
+                f"segment's ending altitude but was never resolved.")
  
     # Calculates dt/dmach, dx/dmach, dW/dmach at a given Mach & weight.
     def _derivatives(self, aircraft: Aircraft, mach: float, weight_kg: float) -> dict:
@@ -135,13 +179,15 @@ class AccelDecelSegment(MissionSegment):
         if self.accelerating and net_force_n <= 0:
             raise ValueError(
                 f"Cannot accelerate: Insufficient thrust at mach={mach:.3f}, "
-                f"altitude={self.altitude_m:.0f} m, weight={weight_kg:.0f} kg "
+                f"altitude={convert.m_to_ft(self.altitude_m):.0f} ft, "
+                f"weight={convert.kg_to_lb(weight_kg):.0f} lb "
                 f"(net force = {net_force_n:.0f} N)."
             )
         if not self.accelerating and net_force_n >= 0:
             raise ValueError(
-                f"Cannot decelerate: Too high idle thrust at "
-                f"mach={mach:.3f}, altitude={self.altitude_m:.0f} m, weight={weight_kg:.0f} kg "
+                f"Cannot decelerate: Too high idle thrust at mach={mach:.3f}, "
+                f"altitude={convert.m_to_ft(self.altitude_m):.0f} ft, "
+                f"weight={convert.kg_to_lb(weight_kg):.0f} lb "
                 f"(net force = {net_force_n:.0f} N)."
             )
  
@@ -239,10 +285,24 @@ class ConstantAltCruiseSegment(MissionSegment):
     """
     name = "cruise"
     def __init__(self, mach: float, range_nm: float, altitude_ft: float, num_steps: int = 100):
-        self.altitude_m = convert.ft_to_m(altitude_ft)
+        self.altitude_m, self._inherit_altitude = _parse_altitude_input(altitude_ft, type(self).__name__)
         self.mach       = mach
         self.range_m    = convert.nm_to_m(range_nm)
         self.num_steps  = num_steps
+        
+    # --- altitude inheritance (altitude is both start and end) ---
+    def needs_start_altitude(self) -> bool:
+        return self._inherit_altitude
+    def resolve_start_altitude(self, altitude_ft: float) -> None:
+        self.altitude_m = convert.ft_to_m(altitude_ft)
+        self._inherit_altitude = False
+    def declared_start_altitude_ft(self):
+        return None if self.altitude_m is None else convert.m_to_ft(self.altitude_m)
+    def _require_altitude(self) -> None:
+        if self.altitude_m is None:
+            raise ValueError(
+                f"{type(self).__name__}.altitude was set to inherit the previous "
+                f"segment's ending altitude but was never resolved.")
 
     # dW/dx (kg fuel per meter of range) at an instantaneous weight.
     def _dW_dx(self, aircraft: Aircraft, weight_kg: float) -> float:
@@ -318,10 +378,24 @@ class LoiterSegment(MissionSegment):
     """
     name = "loiter"
     def __init__(self, mach: float, duration_min: float, altitude_ft: float, num_steps: int = 100):
-        self.altitude_m = convert.ft_to_m(altitude_ft)
+        self.altitude_m, self._inherit_altitude = _parse_altitude_input(altitude_ft, type(self).__name__)
         self.mach       = mach
         self.duration_s = duration_min * 60
         self.num_steps  = num_steps
+        
+    # --- altitude inheritance (altitude is start and end) ---
+    def needs_start_altitude(self) -> bool:
+        return self._inherit_altitude
+    def resolve_start_altitude(self, altitude_ft: float) -> None:
+        self.altitude_m = convert.ft_to_m(altitude_ft)
+        self._inherit_altitude = False
+    def declared_start_altitude_ft(self):
+        return None if self.altitude_m is None else convert.m_to_ft(self.altitude_m)
+    def _require_altitude(self) -> None:
+        if self.altitude_m is None:
+            raise ValueError(
+                f"{type(self).__name__}.altitude was set to inherit the previous "
+                f"segment's ending altitude but was never resolved.")
 
     # dW/dt (kg fuel per second) at an instantaneous weight.
     def _dW_dt(self, aircraft: Aircraft, weight_kg: float) -> float:
@@ -445,7 +519,7 @@ class CommonGammaSegment(MissionSegment):
                              Lower it to trade a small inconsistency for speed.
         ps_search_ceiling_ft Hard upper limit for the search.
         """
-        self.start_altitude_m = convert.ft_to_m(start_altitude_ft)
+        self.start_altitude_m, self._inherit_altitude = _parse_altitude_input(start_altitude_ft, type(self).__name__)
         if end_altitude_ft < 0:
             self.ps_ceiling_fpm = -float(end_altitude_ft)
             self.end_altitude_m = None          # resolved in run()
@@ -460,8 +534,22 @@ class CommonGammaSegment(MissionSegment):
         self.ps_search_ceiling_ft = ps_search_ceiling_ft
 
         # Populated by run() when a Ps ceiling was requested, so the caller can
-        # see what altitude the climb actually terminated at.
+        # see what altitude the climb terminated at.
         self.solved_end_altitude_ft = None if self.ps_ceiling_fpm else end_altitude_ft
+        
+    # --- altitude inheritance (only START altitude is inheritable) ---
+    def needs_start_altitude(self) -> bool:
+        return self._inherit_altitude
+    def resolve_start_altitude(self, altitude_ft: float) -> None:
+        self.start_altitude_m = convert.ft_to_m(altitude_ft)
+        self._inherit_altitude = False
+    def declared_start_altitude_ft(self):
+        return None if self.start_altitude_m is None else convert.m_to_ft(self.start_altitude_m)
+    def _require_altitude(self) -> None:
+        if self.start_altitude_m is None:
+            raise ValueError(
+                f"{type(self).__name__}.start_altitude_ft was set to inherit the previous "
+                f"segment's ending altitude but was never resolved.")
 
     # Thrust calculation placeholder
     def _thrust_n(self, aircraft: Aircraft, altitude_m: float, mach: float) -> float:
@@ -510,7 +598,7 @@ class CommonGammaSegment(MissionSegment):
             "thrust_n":     thrust_n,
         }
     
-    # Ps using MAX thrust, matching the Ps_theor_ms convention reported by
+    # Ps using MAX thrust, matching Ps_theor_ms convention reported by
     # _derivatives().
     def _ps_ms(self, aircraft: Aircraft, weight_kg: float, altitude_m: float) -> float:
         mach   = self.schedule.mach_at_altitude(altitude_m)
@@ -794,21 +882,13 @@ class CruiseClimbSegment(MissionSegment):
         ps_target_fpm --------- Commanded specific excess power (ft/min).
         altitude_bracket_ft --- Search bracket for the altitude solve.
         max_continuous_fraction Fraction of propulsion max_thrust treated as
-                                MAX CONTINUOUS for the Ps calculation. The
-                                propulsion models here expose only max and
-                                idle, while mil ground rules define cruise
-                                ceiling at max continuous, which sits below
-                                the takeoff rating. 1.0 reproduces the
-                                convention already used for Ps_theor_fpm
+                                MAX CONTINUOUS for the Ps calculation. 1.0 
+                                reproduces the convention used for Ps_theor_fpm
                                 elsewhere in this file.
         include_climb_term ---- Include W*sin(gamma) in required thrust.
         """
         if ps_target_fpm <= 0:
-            raise CruiseClimbError(
-                f"ps_target_fpm must be > 0, got {ps_target_fpm}. Ps = 0 is the "
-                f"absolute ceiling, use ConstantAltCruiseSegment at a fixed "
-                f"altitude if that is what you want."
-            )
+            raise CruiseClimbError("ps_target_fpm must be > 0.")
         self.mach                    = mach
         self.range_m                 = convert.nm_to_m(range_nm)
         self.ps_target_ms            = convert.fts_to_ms(ps_target_fpm / 60.0)

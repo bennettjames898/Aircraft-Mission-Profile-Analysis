@@ -53,7 +53,7 @@ THE WORKFLOW (steps 1-3 are identical in all three modes)
           speed internally. Pass a bare float instead of a schedule object for 
           a simple constant-Mach climb.
  
-  STEP 3  Build the mission segment list, in flight order.
+  STEP 3  Build the mission segment list, in flight order. (see segmnets.py)
           Available segments:
             GroundOps(duration_min, throttle_set_pct)
                 Taxi / ground burn. throttle_set_pct interpolates between
@@ -72,10 +72,9 @@ THE WORKFLOW (steps 1-3 are identical in all three modes)
                 Level flight speed change at constant altitude. Max thrust if
                 end_mach > start_mach, idle thrust if it is lower.
  
-          NOTE: segments do not know about each other's initial/final 
-          conditions. Nothing checks that one segment's end altitude matches 
-          the next one's start altitude, so a typo will "teleport" the aircraft 
-          between conditions.
+          NOTE: Mission segments do not have to be continuous between them. 
+          Setting the start altitude of a segment = -1 will cause ti to 
+          inherit the ending altitude of the previus segment.
  
   STEP 4  Run it. THIS is the step that differs between the three modes.
           Here: build a Mission and call .run() directly.
@@ -134,7 +133,7 @@ def main():
             sea_level_thrust_lbf    = 50066,
             tsfc_lb_per_lbfhr       = 0.5279,
             num_engines             = 2,
-            lapse_exponent          = 0.8,
+            lapse_exponent          = 0.6,
             idle_thrust_fraction    = 0.05,
         ),
         DISAF = 0,
@@ -142,20 +141,20 @@ def main():
 
     ### Climb and Descent Schedule Definition
     # follow 280 KCAS until M0.78, then follow M0.78.
-    KCAS = 250
-    MACH = 0.75
+    KCAS = 280
+    MACH = 0.78
     climb_sched   = CASMachSchedule(cas_m_s=convert.kt_to_ms(KCAS), mach=MACH)
     descent_sched = CASMachSchedule(cas_m_s=convert.kt_to_ms(KCAS), mach=MACH)
     
     ### Mision Segments
     MissionSegments = [
         GroundOps(duration_min=60, throttle_set_pct=0),
-        ClimbSegment(start_altitude_ft=1500, end_altitude_ft=35000, schedule=climb_sched, num_steps=100),
-        AccelDecelSegment(altitude_ft=35000, start_mach=0.75, end_mach=0.85, num_steps=100),
-        ConstantAltCruiseSegment(altitude_ft=35000, mach=0.85, range_nm=1200, num_steps=200),
-        AccelDecelSegment(altitude_ft=35000, start_mach=0.85, end_mach=0.75, num_steps=100),
-        DescentSegment(start_altitude_ft=35000, end_altitude_ft=1500, schedule=descent_sched, num_steps=100),
-        LoiterSegment(altitude_ft=1500, mach=0.3, duration_min=20.0, num_steps=100),
+        ClimbSegment(start_altitude_ft=1500, end_altitude_ft=-300, schedule=climb_sched, num_steps=100),
+        AccelDecelSegment(altitude_ft=-1, start_mach=0.75, end_mach=0.85, num_steps=100),
+        ConstantAltCruiseSegment(altitude_ft=-1, mach=0.85, range_nm=1200, num_steps=200),
+        AccelDecelSegment(altitude_ft=-1, start_mach=0.85, end_mach=0.75, num_steps=100),
+        DescentSegment(start_altitude_ft=-1, end_altitude_ft=1500, schedule=descent_sched, num_steps=100),
+        LoiterSegment(altitude_ft=-1, mach=0.3, duration_min=20.0, num_steps=100),
     ]
 
     ### BUILD & RUN a noniterative mission @ aircraft.gross_weight_lb

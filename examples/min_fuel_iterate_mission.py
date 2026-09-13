@@ -138,7 +138,6 @@ def main():
     )
 
     ### Climb and Descent Schedule Definition
-    # follow 280 KCAS until M0.78, then follow M0.78.
     MACH = 0.825
     climb_sched2   = CASMachSchedule(cas_m_s=convert.kt_to_ms(277), mach=MACH)
     descent_sched2 = CASMachSchedule(cas_m_s=convert.kt_to_ms(250), mach=MACH)
@@ -147,11 +146,11 @@ def main():
     MissionSegments = [
         GroundOps(duration_min=60, throttle_set_pct=0.0),
         ClimbSegment(start_altitude_ft=1500, end_altitude_ft=37000, schedule=climb_sched2, num_steps=100),
-        AccelDecelSegment(altitude_ft=37000, start_mach=MACH, end_mach=0.85, num_steps=20),
-        ConstantAltCruiseSegment(altitude_ft=37000, mach=0.85, range_nm=3000, num_steps=300),
-        AccelDecelSegment(altitude_ft=37000, start_mach=0.85, end_mach=MACH, num_steps=20),
-        DescentSegment(start_altitude_ft=37000, end_altitude_ft=1500, schedule=descent_sched2, num_steps=100),
-        LoiterSegment(altitude_ft=1500, mach=0.3, duration_min=20, num_steps=200),
+        AccelDecelSegment(altitude_ft=-1, start_mach=MACH, end_mach=0.85, num_steps=20),
+        ConstantAltCruiseSegment(altitude_ft=-1, mach=0.85, range_nm=5000, num_steps=300),
+        AccelDecelSegment(altitude_ft=-1, start_mach=0.85, end_mach=MACH, num_steps=20),
+        DescentSegment(start_altitude_ft=-1, end_altitude_ft=1500, schedule=descent_sched2, num_steps=100),
+        LoiterSegment(altitude_ft=-1, mach=0.3, duration_min=20, num_steps=200),
         GroundOps(duration_min=60, throttle_set_pct=0),
     ]
     
@@ -161,7 +160,7 @@ def main():
         aircraft                = aircraft,
         MissionSegmentList      = MissionSegments,
         reserve_fuel_lb         = 0,
-        fuel_bracket_lb         = (0, 200000),
+        fuel_bracket_lb         = (0, 190000),
         converge_tol            = 0.1, # nm
     )
 

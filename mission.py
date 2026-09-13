@@ -204,10 +204,21 @@ class Mission:
         segment_results     = []
         total_distance_nm   = 0
         total_time_s        = 0
+        
+        # A segment built with start_altitude_ft / altitude_ft set to -1 is 
+        # handed the previous segment's ending altitude.
+        current_altitude_ft = None # updated in the loop
 
         # Loop thru each mission segment, running segment-specific solver
-        for segment in self.segments:
+        for i, segment in enumerate(self.segments):
+            if segment.needs_start_altitude(): # Check if segment can inherit
+                if current_altitude_ft is None:
+                    raise ValueError( # check if 1st segment is asking to inherit
+                        f"Segment {i} ({segment.name}) must have an explicit altitude stated.")
+                segment.resolve_start_altitude(current_altitude_ft)
             result = segment.run(self.aircraft, weight_kg)
+            if result.end_altitude_ft is not None:
+                current_altitude_ft = result.end_altitude_ft
             segment_results.append(result)
             weight_kg           = result.end_weight_kg
             total_distance_nm   += result.distance_nm
