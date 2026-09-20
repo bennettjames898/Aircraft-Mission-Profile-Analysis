@@ -16,7 +16,6 @@ exactly its zero fuel weight.
  
     Run with:   python examples/max_range_iterate_mission.py
  
- 
 THE THREE WAYS TO RUN AN ANALYSIS
 -------------------------------------------------------------------------------
   1. examples/full_mission_profile.py
@@ -34,7 +33,6 @@ fuel into mode 3 and you get this mission's range back.
 See full_mission_profile.py for the full description of STEPS 1-3 (defining
 the Aircraft, the speed schedules, and the segment list). They are identical
 here. Only STEP 4 differs, and is documented below.
- 
  
 STEP 4 (THIS MODE): call solve_cruise_range_iterate()
 -------------------------------------------------------------------------------
@@ -76,7 +74,6 @@ INPUTS:
  
   converge_tol [nm]
       Convergence tolerance on the cruise range.
- 
  
 READING THE OUTPUT
 -------------------------------------------------------------------------------

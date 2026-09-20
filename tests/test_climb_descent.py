@@ -55,7 +55,7 @@ def test_climb_gamma_residual():
     print("Running: test_climb_gamma_residual")
     ac = build_test_aircraft()
     alt_m       = convert.ft_to_m(ALT)
-    thrust_n = ac.propulsion_model.max_thrust(alt_m, MACH)
+    thrust_n = ac.propulsion_model.max_thrust(alt_m, MACH, ac.DISAC)
 
     gamma = solve_climb_gamma(
         ac, 
@@ -81,7 +81,7 @@ def test_descent_gamma_residual():
     print("Running: test_descent_gamma_residual")
     ac = build_test_aircraft()
     alt_m = convert.ft_to_m(ALT)
-    idle_n = ac.propulsion_model.idle_thrust(alt_m, MACH)
+    idle_n = ac.propulsion_model.idle_thrust(alt_m, MACH, ac.DISAC)
 
     gamma = solve_descent_gamma(
         ac, 
@@ -119,7 +119,7 @@ def test_climb_above_ceiling():
             convert.lb_to_kg(ac.gross_weight_lb+500000), 
             altitude_m=convert.ft_to_m(ALT+30000), 
             mach=MACH, 
-            thrust_n=ac.propulsion_model.max_thrust(convert.ft_to_m(ALT), MACH)
+            thrust_n=ac.propulsion_model.max_thrust(convert.ft_to_m(ALT), MACH, ac.DISAC)
             )
     except TrimSolverError:
         with_error = True

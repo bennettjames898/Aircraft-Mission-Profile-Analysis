@@ -66,7 +66,7 @@ class SimpleTurbofan(PropulsionModelBase):
         self.idle_thrust_fraction   = idle_thrust_fraction # % of max thrust for idle approximation
         self.inputs                 = self.__dict__ # collect input terms for output files
 
-    def max_thrust(self, altitude_m: float, mach: float, DISAC: float = 0) -> float:
+    def max_thrust(self, altitude_m: float, mach: float, DISAC: float) -> float:
         from atmosphere import isa_conditions, RHO0
 
         rho = isa_conditions(altitude_m, DISAC)["density_kg_m3"]
@@ -81,7 +81,7 @@ class SimpleTurbofan(PropulsionModelBase):
         )
         return self.num_engines * thrust_per_engine
 
-    def idle_thrust(self, altitude_m: float, mach: float, DISAC: float = 0) -> float:
+    def idle_thrust(self, altitude_m: float, mach: float, DISAC: float) -> float:
         return self.idle_thrust_fraction * self.max_thrust(altitude_m, mach, DISAC)
 
     def fuel_flow(self, thrust_n: float, altitude_m: float, mach: float, DISAC: float) -> float:
@@ -203,12 +203,12 @@ class SimpleTurboprop(PropulsionModelBase):
         self.inputs                 = self.__dict__ # collect input terms for output files
  
     #--------------------------- PROPELLER TERMS ------------------------------
-    def advance_ratio(self, altitude_m: float, mach: float, DISAC: float = 0) -> float:
+    def advance_ratio(self, altitude_m: float, mach: float, DISAC: float) -> float:
         """J = V / (n*D). Nondimensional forward travel per revolution."""
         tas = convert.mach_to_tas(mach, altitude_m, DISAC)
         return tas / (self.prop_rps * self.prop_diameter_m)
  
-    def helical_tip_mach(self, altitude_m: float, mach: float, DISAC: float = 0) -> float:
+    def helical_tip_mach(self, altitude_m: float, mach: float, DISAC: float) -> float:
         """
         Mach number seen by the blade tip, the vector sum of forward flight
         speed and tip rotational speed. Always higher than aircraft Mach.
@@ -220,7 +220,7 @@ class SimpleTurboprop(PropulsionModelBase):
         a_local     = isa_conditions(altitude_m, DISAC)["speed_of_sound_m_s"]
         return math.sqrt(tas ** 2 + tip_speed ** 2) / a_local
  
-    def prop_efficiency(self, altitude_m: float, mach: float, DISAC: float = 0) -> float:
+    def prop_efficiency(self, altitude_m: float, mach: float, DISAC: float) -> float:
         """
         Propeller efficiency, eta = (thrust power out) / (shaft power in).
  
@@ -252,7 +252,7 @@ class SimpleTurboprop(PropulsionModelBase):
         return max(eta, 1e-3) # Floor prevents divide-by-zero downstream.
  
     #----------------------------- POWER TERMS --------------------------------
-    def max_power_w(self, altitude_m: float, DISAC: float = 0) -> float:
+    def max_power_w(self, altitude_m: float, DISAC: float) -> float:
         """Total shaft power available (W, all engines) at altitude."""
         from atmosphere import isa_conditions, RHO0
  
@@ -260,7 +260,7 @@ class SimpleTurboprop(PropulsionModelBase):
         density_ratio = rho / RHO0
         return self.num_engines * self.sea_level_power_w * (density_ratio ** self.lapse_exponent)
  
-    def _static_thrust_n(self, power_w: float, altitude_m: float, DISAC: float = 0) -> float:
+    def _static_thrust_n(self, power_w: float, altitude_m: float, DISAC: float) -> float:
         """
         Actuator disk (Rankine-Froude momentum theory) static thrust for a
         given shaft power:
@@ -312,11 +312,11 @@ class SimpleTurboprop(PropulsionModelBase):
         T_prop      = eta * power_w / tas
         return min(T_static, T_prop)
  
-    def max_thrust(self, altitude_m: float, mach: float, DISAC: float = 0) -> float:
+    def max_thrust(self, altitude_m: float, mach: float, DISAC: float) -> float:
         power_w = self.max_power_w(altitude_m, DISAC)
         return self._thrust_from_power(power_w, altitude_m, mach, DISAC)
  
-    def idle_thrust(self, altitude_m: float, mach: float, DISAC: float = 0) -> float:
+    def idle_thrust(self, altitude_m: float, mach: float, DISAC: float) -> float:
         power_w = self.idle_power_fraction * self.max_power_w(altitude_m, DISAC)
         return self._thrust_from_power(power_w, altitude_m, mach, DISAC)
  

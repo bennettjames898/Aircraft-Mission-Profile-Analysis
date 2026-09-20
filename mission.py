@@ -100,18 +100,20 @@ class MissionResult:
             f"{'Altitude (ft)':>16}{'Mach Number':>16}"
         )
         lines.append(
-            f"{'':^12}{'Seg':>8}{'Total':>8}{'Seg':>8}{'Total':>8}{'Seg':>10}{'Total':>10}{'':>16}"
+            f"{'':^12}{'Seg':>8}{'Total':>8}{'Seg':>8}{'Total':>8}{'Seg':>10}{'Remain':>10}{'':>16}"
             f"{'Start':>8}{'End':>8}{'Start':>8}{'End':>8}"
         )
         
         # Summary table of mission segments
         runTime = 0
         runDist = 0
-        runFuel = 0
+        runFuel = self.aircraft.fuel_weight_lb
         for seg in self.segment_results:
-            runTime = runTime + seg.time_s/60
-            runDist = runDist + seg.distance_nm
-            runFuel = runFuel + convert.kg_to_lb(seg.fuel_burned_kg)
+            runTime += seg.time_s/60
+            runDist += seg.distance_nm
+            runFuel -= convert.kg_to_lb(seg.fuel_burned_kg)
+            # if seg.segment_name == 'air_refuel':
+            #     runFuel += seg.history-[-1]['Fuel_transfer_total']
             lines.append(
                 f"{seg.segment_name:<12}" # segment name
                 f"{seg.time_s/60:>8.1f}{runTime:>8.1f}" # Time
@@ -121,6 +123,8 @@ class MissionResult:
                 f"{seg.start_altitude_ft:>8.1f}{seg.end_altitude_ft:>8.1f}" # Altitude
                 f"{seg.history[0]['mach']:>8.3f}{seg.history[-1]['mach']:>8.3f}" # Mach
             )
+            if seg.segment_name == 'air_refuel':
+                lines[-1] += f"   *** {seg.history[-1]['Fuel_transfer_total']:.1f} lb transfer (+ = onload)"
         lines.append("-" * 112)
         lines.append(
             f"{'TOTAL':<12}{self.total_time_s/60:>16.1f}{self.total_distance_nm:>16.1f}"
@@ -159,12 +163,14 @@ class MissionResult:
         
         runTime = 0
         runDist = 0
-        runFuel = 0
+        runFuel = self.aircraft.fuel_weight_lb
         for seg in self.segment_results:
             for ii, segTH in enumerate(seg.history):
-                runTime = runTime + segTH['time_min']
-                runDist = runDist + segTH['distance_nm']
-                runFuel = runFuel + segTH['Fuel_burn_lb']
+                runTime += segTH['time_min']
+                runDist += segTH['distance_nm']
+                runFuel -= segTH['Fuel_burn_lb']
+                if seg.segment_name == 'air_refuel':
+                    runFuel += segTH['Fuel_transfer_step']
                 lines.append(
                     f"{seg.segment_name:<10}" # segment name
                     f"{segTH['time_min']:>10.1f}{runTime:>10.1f}" # Time
@@ -233,7 +239,7 @@ class Mission:
             ]
         else:
             end_line = [
-                f"\n\nFuel remaining at end of mission: {convert.kg_to_lb(weight_kg) - self.aircraft.zero_fuel_weight_lb:.0f} lb"
+                f"\n\nFuel remaining at end of mission: {convert.kg_to_lb(weight_kg) - self.aircraft.zero_fuel_weight_lb:.1f} lb"
             ]
 
         # Output whole mission summary data

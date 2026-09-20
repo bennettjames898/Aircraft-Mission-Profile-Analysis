@@ -43,7 +43,6 @@ class MissionSizingError(RuntimeError):
     """
     pass
 
-
 class MaxRangeIteratedResult:
     def __init__(self, cruise_range_nm: float, mission_result: MissionResult, residual_lb: float, iterations: int):
         self.cruise_range_nm = cruise_range_nm
@@ -105,9 +104,8 @@ def solve_cruise_range(
         segments = build_segments_fn(cruise_range_nm)
         mission = Mission(aircraft=aircraft, segments=segments,saveDir=None) # do not save or display intermediate runs
         result = mission.run()
-        # Positive: mission ended ABOVE zero-fuel weight (fuel left over,
-        # could fly further). Negative: this range isn't achievable on
-        # the fuel available (would need to burn more than is loaded).
+        # Positive: mission ended ABOVE zero-fuel weight
+        # Negative: range isn't achievable on the fuel available
         return result.end_weight_lb - aircraft.zero_fuel_weight_lb
 
     lo, hi = range_bracket_nm
@@ -116,7 +114,7 @@ def solve_cruise_range(
     if f_lo < 0:
         raise MissionSizingError(
             f"Insufficient fuel to complete the fixed (non-cruise) portions of the "
-            f"mission at all: even zero cruise range ends {abs(f_lo):.0f} kg below "
+            f"mission: zero cruise range ends {abs(f_lo):.0f} kg below "
             f"zero-fuel weight. Check climb/descent/reserve fuel burn against the "
             f"fuel actually loaded (start_weight_kg - zero_fuel_weight_kg)."
         )

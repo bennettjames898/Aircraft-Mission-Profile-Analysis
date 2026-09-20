@@ -25,13 +25,13 @@ class Aircraft:
             propulsion_model: PropulsionModelBase,
             DISAF: float = 0,
         ):
-        self.name = name
-        self.wing_area_m2 = wing_area_ft2 * convert.ft_to_m(1)**2
-        self.operating_empty_weight_lb = operating_empty_weight_lb
-        self.payload_weight_lb = payload_weight_lb
-        self.fuel_weight_lb = fuel_weight_lb
-        self.aero_model = aero_model
-        self.propulsion_model = propulsion_model
+        self.name           = name
+        self.wing_area_m2   = wing_area_ft2 * convert.ft_to_m(1)**2
+        self.operating_empty_weight_lb  = operating_empty_weight_lb
+        self.payload_weight_lb          = payload_weight_lb
+        self.fuel_weight_lb             = fuel_weight_lb
+        self.aero_model         = aero_model
+        self.propulsion_model   = propulsion_model
         self.DISAC = DISAF*5/9 # carry DISAC
         
         # mass props buildup

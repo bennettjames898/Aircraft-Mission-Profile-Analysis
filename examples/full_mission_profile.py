@@ -33,7 +33,6 @@ final step. Modes 2 and 3 are inverses of each other and will round trip: the
 fuel that mode 3 solves for a given range is the fuel that makes mode 2 return
 that same range.
  
- 
 THE WORKFLOW (steps 1-3 are identical in all three modes)
 -------------------------------------------------------------------------------
   STEP 1  Define the Aircraft.
@@ -82,7 +81,6 @@ THE WORKFLOW (steps 1-3 are identical in all three modes)
               mission = Mission(aircraft, MissionSegments, saveDir)
               result  = mission.run()
  
- 
 OUTPUT / saveDir
 -------------------------------------------------------------------------------
   saveDir = None      Nothing is written. Use `print(result.summary)` to get
@@ -107,7 +105,7 @@ import matplotlib.pyplot as plt
 from aero_model import SimpleDragPolar
 from propulsion_model import SimpleTurbofan
 from aircraft_build import Aircraft
-from segments import GroundOps, ClimbSegment, ConstantAltCruiseSegment, DescentSegment, LoiterSegment, AccelDecelSegment
+from segments import GroundOps, ClimbSegment, ConstantAltCruiseSegment, DescentSegment, LoiterSegment, AccelDecelSegment, AerialRefuelSegment
 from speed_schedule import CASMachSchedule
 import unit_conversions as convert
 from mission import Mission
@@ -122,7 +120,7 @@ def main():
         wing_area_ft2               = 3501,
         operating_empty_weight_lb   = 239200,        
         payload_weight_lb           = 47040,
-        fuel_weight_lb              = 189760,
+        fuel_weight_lb              = 30000,
         aero_model=SimpleDragPolar(
             cd0                 = 0.02,
             aspect_ratio        = 10.58, 
@@ -148,10 +146,12 @@ def main():
     
     ### Mision Segments
     MissionSegments = [
-        GroundOps(duration_min=60, throttle_set_pct=0),
-        ClimbSegment(start_altitude_ft=1500, end_altitude_ft=-300, schedule=climb_sched, num_steps=100),
-        AccelDecelSegment(altitude_ft=-1, start_mach=0.75, end_mach=0.85, num_steps=100),
-        ConstantAltCruiseSegment(altitude_ft=-1, mach=0.85, range_nm=1200, num_steps=200),
+        GroundOps(duration_min=60, throttle_set_pct=0.0),
+        ClimbSegment(start_altitude_ft=1500, end_altitude_ft=38000, schedule=climb_sched, num_steps=100),
+        AccelDecelSegment(altitude_ft=-1, start_mach=MACH, end_mach=0.85, num_steps=100),
+        ConstantAltCruiseSegment(altitude_ft=-1, mach=0.85, range_nm=500, num_steps=200),
+        AerialRefuelSegment(altitude_ft=-1, mach=0.7, transfer_rate_lb_min=2000, fuel_transferred_lb=14000, num_steps=3),
+        ConstantAltCruiseSegment(altitude_ft=-1, mach=0.85, range_nm=1000, num_steps=200),
         AccelDecelSegment(altitude_ft=-1, start_mach=0.85, end_mach=0.75, num_steps=100),
         DescentSegment(start_altitude_ft=-1, end_altitude_ft=1500, schedule=descent_sched, num_steps=100),
         LoiterSegment(altitude_ft=-1, mach=0.3, duration_min=20.0, num_steps=100),
@@ -165,6 +165,8 @@ def main():
         saveDir=saveDir
     )
     result = mission.run() # runs the mission
+    result.segment_results[4].fuel_burned_kg
+    result.segment_results[4].end_weight_kg - result.segment_results[4].start_weight_kg
     if saveDir is None:
         print(result.summary) # print summary to cmd line (if saveDir=None)
 

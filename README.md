@@ -79,7 +79,7 @@ build-up, engine thrust tables, etc.). Everything downstream (`Aircraft`,
 dataset-specific code logic.
 
 ## Physics implemented
-- **ISA atmosphere** (0–20 km), including an ISA+ΔT offset option.
+- **ISA atmosphere** (0–20 km), including an ISA+ΔT offset.
 - **Steady, level trim**: L = W, T = D solved at each point via the
   required-CL relationship.
 - **Climbing/descending trim**: L = W cos(γ), T − D = W sin(γ), where D
@@ -89,26 +89,24 @@ dataset-specific code logic.
 - **Climb acceleration correction**: Excess thrust required to accelerate 
   in TAS is accounted for in climbs and descents by the factor
   `ka = 1 + (V/g)(dV/dh)` in the force balance (`solver_climb_descent.py`), computed
-  from the schedule's `dtas_dh` at every point. See the
-  references and full derivation in `solver_climb_descent.py`'s module 
-  docstring (Marchman, *Aerodynamics and Aircraft Performance*, Virginia Tech)
+  from the schedule's `dtas_dh` at every point. See the references and 
+  full derivation in `solver_climb_descent.py`'s module docstring 
+  (Marchman, *Aerodynamics and Aircraft Performance*, Virginia Tech).
 - **Climb/descend-to-ceiling** (`ClimbSegment`/`DescentSegment`): passing a
   negative `end_altitude_ft` (e.g. `-300`) is read as a target specific
   excess power in ft/min rather than a target altitude. The segment solves
-  (via a `brentq` search wrapped around the RK4 climb) for the required altitude.
+  for the required altitude via a `brentq` search wrapped around the RK4 climb.
 - **Cruise-climb** (`segments.py:CruiseClimbSegment`): integrated over range
   like `ConstantAltCruiseSegment`, and at each step a brentq search finds the
   altitude holding a commanded Ps (MIL-STD-3013 cruise-climb convention), 
   causing the aircraft to drift upward as it burns fuel. An optional drift-up 
   correction adds `W*sin(gamma)` to the required-thrust balance.
 - **Level-flight acceleration/deceleration** (`AccelDecelSegment`): the
-  explicit T − D = m(dV/dt) force balance integrated over Mach (rather than
+  explicit `T − D = m(dV/dt)` force balance integrated over Mach (rather than
   altitude or distance) via RK4, at full thrust when accelerating and idle
   thrust when decelerating.
-- **Coupled weight/fuel-burn integration**: 4th-order Runge-Kutta on
+- **Coupled weight/fuel-burn integration**: RK4 on
   `dW/dx = -fuel_flow / V` for cruise, `dW/dt = -fuel_flow` for loiter
-- **Breguet range equation** as an independent closed-form check on the
-  numerical integrator.
 - **Turboprop propulsion model** (`propulsion_model.py:SimpleTurboprop`): a
   power-based alternative to the constant-TSFC turbofan. Available thrust is
   the lesser of the momentum-theory static-thrust limit and `eta_prop * P / V`,
@@ -120,8 +118,8 @@ dataset-specific code logic.
   rather than iterating within a single segment. 
 - **Mission-level min-fuel sizing** (`solver_mission_fuel.py`): given a
   fixed mission range, this tool solves for the minimum fuel required. This is 
-  a distinct iteration loop wrapping the entire mission in an outer root-find 
-  rather than iterating within a single segment.
+  a distinct iteration loop wrapping the aircraft model in an outer root-find 
+  rather than iterating within a segment.
 
 ## Validation
 `tests/test_breguet_range_check.py` checks that the numerically
@@ -157,16 +155,15 @@ independently-derivable reference in the corresponding test or
   outbound/inbound legs).
 - Mission segment continuity is partially enforced. Altitude can be
   carried forward automatically if the user desires (segment `start_altitude_ft`/
-  `altitude_ft = -1`), the aircraft can still 'teleport' to a different Mach
+  `altitude_ft = -1`), the aircraft can 'teleport' to a different Mach
   between two named segments.
 
 ## Future Work
 - [ ] Improved outputting & plot generation (currently ad hoc plotting)
 - [ ] Create an implementation of `AeroModelBase` / `PropulsionModelBase`, to
-      read in table data from an outside source (i.e. DATCOM) to demonstrate 
-	  knowledge of iterpolated data handling.
+      read in table data from an outside source (i.e. DATCOM, Pycycle) to 
+	  refine aircraft models.
 - [ ] Mission Segment Additions:
-        - Air Refueling (tanker or receiver) with a drag delta & transfer rate
         - Turns/Maneuvers (g loading)
 
 ## References
