@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from typing import List
 
 from aircraft_build import Aircraft
-from segments import MissionSegment, SegmentResult
+from segments import MissionSegment, SegmentResult, MissionLeg
 import unit_conversions as convert
 
 @dataclass
@@ -50,11 +50,23 @@ class MissionResult:
         self.missionSuccess = missionSuccess
         self.segment_results = segment_results
         
+        # Per-leg distance bookkeeping for radius missions.
+        # Segments carry no leg tag in a normal one-way mission, so these are
+        # all 0 except unassigned_distance_nm. See MissionLeg and
+        # solver_mission_range.solve_radius().
+        self.outbound_distance_nm   = self.leg_distance_nm(MissionLeg.OUTBOUND)
+        self.inbound_distance_nm    = self.leg_distance_nm(MissionLeg.INBOUND)
+        self.neutral_distance_nm    = self.leg_distance_nm(MissionLeg.NEUTRAL)
+        self.unassigned_distance_nm = self.leg_distance_nm(MissionLeg.UNASSIGNED)
+        # > 0 means the turn point is not equidistant from base yet. The radius
+        # solver drives this to zero.
+        self.leg_imbalance_nm = abs(self.outbound_distance_nm - self.inbound_distance_nm)
+        
         # setup the summary file of the mission
         summary, fnameSum = self.buildSummary()
         self.summary = summary
         
-        # build the time history file of the mission - TODO
+        # build the time history file of the mission 
         timehistory, fnameTH = self.buildTimeHistory()
         
         # display and print if desired 
@@ -62,6 +74,15 @@ class MissionResult:
             print(summary)
             self.writeFile(fnameSum,summary)
             self.writeFile(fnameTH,timehistory)
+            
+    def leg_distance_nm(self, leg: str) -> float:
+        """
+        Ground distance credited to one leg of the mission.
+
+        'leg' is a MissionLeg value. Segments that credit no distance
+        (GroundOps, LoiterSegment) contribute 0.
+        """
+        return sum(seg.distance_nm for seg in self.segment_results if seg.leg == leg)
             
     def buildSummary(self) -> str:
         # Collect aero input values
@@ -131,6 +152,25 @@ class MissionResult:
             f"{self.total_fuel_burned_lb:>20.1f}{self.end_weight_lb:>16.1f}"
             f"{self.missionSuccess[0]}"
         )
+        
+        # Radius (out-and-back) missions only: report what each leg covered so
+        # the turn point can be read straight off the summary.
+        if self.outbound_distance_nm > 0 or self.inbound_distance_nm > 0:
+            lines.append("-" * 112)
+            lines.append(
+                f"{'RADIUS':<12}"
+                f"{'Outbound leg [nm]':>22}{self.outbound_distance_nm:>10.1f}"
+                f"{'Inbound leg [nm]':>22}{self.inbound_distance_nm:>10.1f}"
+                f"{'Imbalance [nm]':>22}{self.leg_imbalance_nm:>10.3f}"
+            )
+            if self.neutral_distance_nm > 0:
+                lines.append(
+                    f"{'':<12}{'Neutral (counted toward neither leg) [nm]':>44}"
+                    f"{self.neutral_distance_nm:>10.1f}"
+                )
+        # Appended to the last line rather than added as its own, so the text
+        # reads the same as it always has (missionSuccess starts with "\n\n").
+        lines[-1] = lines[-1] + f"{self.missionSuccess[0]}"
         
         # build text file
         sumOutTab = "\n".join(lines)
