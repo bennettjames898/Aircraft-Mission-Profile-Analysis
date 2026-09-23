@@ -1,8 +1,8 @@
 """
 Climb/descent speed schedules.
 
-Every schedule below exposes the same three-method interface so
-segments.py doesn't need to know which kind of schedule it's using:
+Every schedule below exposes the same three-method interface so the
+segments/ package doesn't need to know which kind of schedule it's using:
 
     mach_at_altitude(altitude_m) -- Mach number to fly at that altitude
     tas_at_altitude(altitude_m) --- true airspeed (m/s) at that altitude
@@ -13,8 +13,8 @@ accelerating in true airspeed even during a "steady" climb, and that
 acceleration consumes some of the available excess power that would go 
 into rate of climb.
 
-segments.py (CommonGammaSegment) uses dtas_dh to compute that correction
-('ka'), which is then applied in the trim solve done by
+segments/common_gamma.py (CommonGammaSegment) uses dtas_dh to compute that
+correction ('ka'), which is then applied in the trim solve done by
 solver_climb_descent.py.
 """
 

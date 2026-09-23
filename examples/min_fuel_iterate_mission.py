@@ -15,17 +15,21 @@ aircraft lands at exactly its zero fuel weight (plus some reserve).
     Run with:   python examples/min_fuel_iterate_mission.py
  
  
-THE THREE WAYS TO RUN AN ANALYSIS
+THE FOUR WAYS TO RUN AN ANALYSIS
 -------------------------------------------------------------------------------
   1. examples/full_mission_profile.py
         Fixed mission, no iteration.        Fuel and range are both inputs.
-  2. examples/max_range_iterate_mission.py  
+  2. examples/max_range_iterate_mission.py
         Fixed fuel   -> solves cruise range. "How far can it go on this fuel?"
         (solver_mission_range.py)
   3. examples/min_fuel_iterate_mission.py   THIS FILE
         Fixed range  -> solves minimum fuel. "How much fuel does this mission require?"
         (solver_mission_fuel.py)
- 
+  4. examples/radius_mission.py
+        Fixed fuel   -> solves an out-and-back radius, a variant of mode 2
+        that solves two cruise legs (outbound/inbound) at once instead of one.
+        (solver_mission_range.py:solve_radius_iterate)
+
 Modes 2 and 3 are inverses and will round trip. Feed this solver's answer for
 fuel into mode 2 and you get this mission's range back.
  

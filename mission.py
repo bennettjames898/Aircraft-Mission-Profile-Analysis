@@ -10,7 +10,7 @@ weight forward from one segment to the next.
     - 'Aircraft.gross_weight_lb' is the starting weight of the mission run. 
       Adjust the aircraft's mass properties to change the starting weight.
 
-All physics lives in segments.py and aircraft.py.
+All physics lives in the segments/ package and aircraft_build.py.
 
 Mission's only job is bookkeeping: run segment 1,
 take the ending weight as segment 2's starting weight, and so on, while
@@ -27,8 +27,8 @@ import unit_conversions as convert
 @dataclass
 class MissionResult:
     """
-    MissionResult creates results files for the whole mission (summary table 
-    and a time history of each step through each segment). 
+    MissionResult creates results files for the whole mission (summary table
+    and a time history of each step through each segment).
     """
     def __init__(
             self,     
@@ -153,8 +153,8 @@ class MissionResult:
             f"{self.missionSuccess[0]}"
         )
         
-        # Radius (out-and-back) missions only: report what each leg covered so
-        # the turn point can be read straight off the summary.
+        # Radius missions only: report what each leg covered so the turn point 
+        # can be read off of the summary.
         if self.outbound_distance_nm > 0 or self.inbound_distance_nm > 0:
             lines.append("-" * 112)
             lines.append(
@@ -168,8 +168,6 @@ class MissionResult:
                     f"{'':<12}{'Neutral (counted toward neither leg) [nm]':>44}"
                     f"{self.neutral_distance_nm:>10.1f}"
                 )
-        # Appended to the last line rather than added as its own, so the text
-        # reads the same as it always has (missionSuccess starts with "\n\n").
         lines[-1] = lines[-1] + f"{self.missionSuccess[0]}"
         
         # build text file

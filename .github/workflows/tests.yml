@@ -35,3 +35,4 @@ jobs:
           python examples/full_mission_profile.py
           python examples/max_range_iterate_mission.py
           python examples/min_fuel_iterate_mission.py
+          python examples/radius_mission.py

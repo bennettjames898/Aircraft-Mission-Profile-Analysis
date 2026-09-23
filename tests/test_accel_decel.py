@@ -1,6 +1,6 @@
 """
 Validation tests for AccelerationSegment/DecelerationSegment
-(CommonAccelSegment in segments.py).
+(AccelDecelSegment in segments/accel_decel.py).
  
 Unlike climb/descent, there's no implicit trim solve here -- gamma is
 pinned at zero and the along-flight-path force balance is fully

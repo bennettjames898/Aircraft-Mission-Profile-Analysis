@@ -7,7 +7,7 @@ a single segment. This architecture maintains the MissionSegment framework
 where individual segments do not interact with the mission before or after.
 
 brentq is used to iterate on the cruise range, and uses standard scipy inputs 
-to allocate the search bracket andsolution tolerance. Logic is in place to 
+to allocate the search bracket and solution tolerance. Logic is in place to 
 expand the search bracket if the root (max range & zero fuel) cannot be found. 
 
 A wrapper function is included at the bottom of this file and should be used 

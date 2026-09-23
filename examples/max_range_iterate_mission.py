@@ -16,7 +16,7 @@ exactly its zero fuel weight.
  
     Run with:   python examples/max_range_iterate_mission.py
  
-THE THREE WAYS TO RUN AN ANALYSIS
+THE FOUR WAYS TO RUN AN ANALYSIS
 -------------------------------------------------------------------------------
   1. examples/full_mission_profile.py
         Fixed mission, no iteration.        Fuel and range are both inputs.
@@ -26,7 +26,11 @@ THE THREE WAYS TO RUN AN ANALYSIS
   3. examples/min_fuel_iterate_mission.py
         Fixed range  -> solves minimum fuel. "How much fuel does this mission require?"
         (solver_mission_fuel.py)
- 
+  4. examples/radius_mission.py
+        Fixed fuel   -> solves an out-and-back radius, a variant of this mode
+        that solves two cruise legs (outbound/inbound) at once instead of one.
+        (solver_mission_range.py:solve_radius_iterate)
+
 Modes 2 and 3 are inverses and will round trip. Feed this solver's answer for
 fuel into mode 3 and you get this mission's range back.
  

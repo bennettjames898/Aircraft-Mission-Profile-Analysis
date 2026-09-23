@@ -238,11 +238,45 @@ altitude inheritance. A later segment can inherit its ending altitude.
 SOURCES OF ERROR
   - CruiseClimbError at construction if ps_target_fpm <= 0.
   - CruiseClimbError during run() ("Cannot achieve Ps = ... at <bracket
-    lo> ft...") the aircraft can't hold the commanded Ps at the bottom 
+    lo> ft...") the aircraft can't hold the commanded Ps at the bottom
     of altitude_bracket_ft.
   - CruiseClimbError during run() ("Exceeding Ps = ... at the top of the
     search bracket... Increase altitude_bracket_ft.") the aircraft has
     more Ps than commanded at the top of the bracket.
+
+===============================================================================
+AerialRefuelSegment(mach, altitude_ft, transfer_rate_lb_min,
+                     fuel_transferred_lb=None, duration_min=None,
+                     num_steps=100)
+===============================================================================
+Constant altitude, constant Mach fuel transfer (onload or offload), integrated
+over time via RK4 on the net weight-change ODE dW/dt = transfer_rate -
+fuel_flow(W, h, M). See the class docstring in segments/air_refuel.py for the 
+full derivation and the fuel accounting convention.
+
+  mach ------------------ Constant Mach flown during the transfer.
+  altitude_ft ------------ Constant altitude. Accepts -1 (see ALTITUDE
+                          INHERITANCE).
+  transfer_rate_lb_min --- Signed rate: > 0 receiving (onload), < 0 donating
+                          (offload). Must be non-zero.
+  fuel_transferred_lb ---- How much fuel to move (a positive magnitude,
+                          regardless of direction). Specify this OR
+                          duration_min, not both.
+  duration_min ----------- How long to stay connected. Specify this OR
+                          fuel_transferred_lb, not both; the other is derived
+                          from the constant rate (duration = quantity / |rate|).
+  num_steps -------------- RK4 step count over the transfer duration.
+
+SOURCES OF ERROR
+  - ValueError at construction if transfer_rate_lb_min == 0.
+  - ValueError at construction if neither or both of fuel_transferred_lb /
+    duration_min are given, or if the one given is <= 0.
+  - AerialRefuelError at the start of run() if the aircraft enters the segment
+    already below its zero fuel weight.
+  - AerialRefuelError during run() if a donation (transfer_rate_lb_min < 0)
+    would drive the aircraft below its zero fuel weight before the transfer
+    completes. There is no equivalent upper-bound check on an onload, because
+    Aircraft carries no tank-capacity attribute.
 """
 
 from dataclasses import dataclass, field

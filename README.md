@@ -21,11 +21,13 @@ pip install -r requirements.txt
 python3 examples/full_mission_profile.py
 python3 examples/max_range_iterate_mission.py
 python3 examples/min_fuel_iterate_mission.py
+python3 examples/radius_mission.py
 python3 -m pytest tests/ -v
 ```
-The examples showcase a simple and fully iterated mission for an example 
-airliner based on the B787. Each will output two text files showing a summary 
-of the mission as well as a time-history output of each segment. 
+The examples showcase a simple mission, a fully iterated mission, and an radius 
+mission for an example airliner based on the B787. Each will output two text 
+files showing a summary of the mission as well as a time-history output of 
+each segment. 
 
 Defining a climb/descent schedule:
 ```python
@@ -54,12 +56,17 @@ mission.py              - Mission class: sequences segments, carries weight forw
 propulsion_model.py     - Propulsion interface + simple constant-TSFC turbofan and
                           constant-PSFC turboprop (advance-ratio efficiency +
                           tip-Mach compressibility) implementations
-segments.py             - MissionSegment base class, GroundOps (ground fuel burn),
-                          AccelDecelSegment (RK4 over Mach), ConstantAltCruiseSegment
-                          (RK4), LoiterSegment (RK4), ClimbSegment/DescentSegment (brentq
-                          gamma trim, optional Ps-ceiling end condition), CruiseClimbSegment
-                          (RK4 over range with a brentq altitude solve at each step, MIL-STD-3013
-                          style Ps-limited cruise-climb)
+segments/               - Package of mission segment classes (one file per segment. See
+                          segments/base.py for the full catalog and READ FIRST notes):
+                          MissionSegment base class + MissionLeg (radius-mission leg
+                          tagging), GroundOps (ground fuel burn), AccelDecelSegment (RK4
+                          over Mach), ConstantAltCruiseSegment (RK4), LoiterSegment (RK4),
+                          ClimbSegment/DescentSegment (shared CommonGammaSegment march,
+                          brentq gamma trim, optional Ps-ceiling end condition),
+                          CruiseClimbSegment (RK4 over range with a brentq altitude solve
+                          at each step, MIL-STD-3013 style Ps-limited cruise-climb),
+                          AerialRefuelSegment (RK4 over time, onload/offload fuel transfer
+                          coupled with the receiving/donating aircraft's own burn)
 speed_schedule.py       - Climb/descent speed schedules (constant Mach/TAS/CAS, CAS/Mach crossover)
 unit_conversions.py     - Collection of unit conversions used across the project
 examples/               - Runnable end-to-end mission scripts
@@ -74,9 +81,9 @@ aerodynamic calculations using the textbook (Anderson) equations. The
 propulsion model can provide conceptual design approximations (Mattingly). 
 Increasing aero/prop model fidelity means only to implement new subclasses into 
 `aero_model.py` and `propulsion_model.py` to handle specific datasets (DATCOM 
-build-up, engine thrust tables, etc.). Everything downstream (`Aircraft`, 
-`segments.py`, `Mission`) calls those interface methods, untanglign them from 
-dataset-specific code logic.
+build-up, engine thrust tables, etc.). Everything downstream (`Aircraft`, the 
+`segments/` package, `Mission`) calls those interface methods, untangling them 
+from dataset-specific code logic.
 
 ## Physics implemented
 - **ISA atmosphere** (0–20 km), including an ISA+ΔT offset.
@@ -96,7 +103,7 @@ dataset-specific code logic.
   negative `end_altitude_ft` (e.g. `-300`) is read as a target specific
   excess power in ft/min rather than a target altitude. The segment solves
   for the required altitude via a `brentq` search wrapped around the RK4 climb.
-- **Cruise-climb** (`segments.py:CruiseClimbSegment`): integrated over range
+- **Cruise-climb** (`segments/cruise_climb.py:CruiseClimbSegment`): integrated over range
   like `ConstantAltCruiseSegment`, and at each step a brentq search finds the
   altitude holding a commanded Ps (MIL-STD-3013 cruise-climb convention), 
   causing the aircraft to drift upward as it burns fuel. An optional drift-up 
@@ -120,6 +127,20 @@ dataset-specific code logic.
   fixed mission range, this tool solves for the minimum fuel required. This is 
   a distinct iteration loop wrapping the aircraft model in an outer root-find 
   rather than iterating within a segment.
+- **Mission-level radius (out-and-back) sizing** (`solver_mission_range.py`:
+  `solve_radius`/`solve_radius_iterate`): given a fixed fuel weight, solves for
+  the maximum radius at which an outbound leg and an inbound leg both cover
+  the same ground distance so that the mission lands at zero residual fuel. This
+  nests two loops: an outer brentq on radius, and an inner correction that
+  balances the two legs' cruise ranges at each trial radius. Segments are
+  tagged `leg="outbound"`/`"inbound"`/`"neutral"` (`MissionLeg` in
+  `segments/base.py`) so `Mission` can total each leg's distance independently.
+- **Aerial refueling** (`segments/air_refuel.py:AerialRefuelSegment`): models
+  fuel transfer (onload or offload) and normal fuel burn as a single RK4
+  integration, `dW/dt = transfer_rate - fuel_flow(W,h,M)`,
+  so a receiving aircraft's growing weight (and a donating aircraft's reducing
+  weight) correctly feeds back into its own drag and fuel flow during the
+  transfer.
 
 ## Validation
 `tests/test_breguet_range_check.py` checks that the numerically
@@ -136,6 +157,21 @@ is providing realistic outputs, and that its error catching is functioning.
 returning realistic outputs, and that it's output can be repeated using 
 `tests/test_max_cruise_iterate.py`. 
 `tests/test_accel_decel.py` checks the behaviors of the acceleration segment.
+`tests/test_cruise_climb.py` checks that `CruiseClimbSegment`'s per-step
+altitude solve is self-consistent (the Ps evaluated at the solved altitude
+reproduces the commanded Ps).
+`tests/test_ps_ceiling_climb.py` checks the Ps-ceiling climb/descent
+termination in `CommonGammaSegment` (a negative `end_altitude_ft` is read as a
+target specific excess power rather than an altitude).
+`tests/test_radius_mission.py` checks radius (out-and-back) missions: leg
+tagging and validation, that both legs converge to the same distance while
+their cruise ranges differ, monotonicity of the converged radius, and the
+guard conditions (interleaved legs, untagged distance, a radius too small to
+fit a cruise, a missing leg).
+`tests/test_aerial_refuel.py` checks `AerialRefuelSegment`: that transfer and
+fuel burn superpose correctly for both onloads and offloads, the quantity/
+duration input modes, sign conventions, altitude inheritance, and the
+zero-fuel-weight guard on an offload.
 
 Individual file outputs are checked against a hand-computable or
 independently-derivable reference in the corresponding test or
@@ -151,8 +187,8 @@ independently-derivable reference in the corresponding test or
   Residual core jet thrust and flat rating are not modeled.
 - Simple aero model is whole aircraft and assumes critical mach behavior 
   based on Anderson textbook methods.
-- Missions are only ran in a single 'direction' (no radius missions, or 
-  outbound/inbound legs).
+- Missions fly either a single point-to-point profile or a radius profile 
+  with a single turn point.
 - Mission segment continuity is partially enforced. Altitude can be
   carried forward automatically if the user desires (segment `start_altitude_ft`/
   `altitude_ft = -1`), the aircraft can 'teleport' to a different Mach

@@ -17,7 +17,7 @@ behaves as expected.
  
     Run with:   python examples/full_mission_profile.py
  
-THE THREE WAYS TO RUN AN ANALYSIS
+THE FOUR WAYS TO RUN AN ANALYSIS
 -------------------------------------------------------------------------------
   1. examples/full_mission_profile.py       THIS FILE
         Fixed mission, no iteration.        Fuel and range are both inputs.
@@ -27,11 +27,14 @@ THE THREE WAYS TO RUN AN ANALYSIS
   3. examples/min_fuel_iterate_mission.py
         Fixed range  -> solves fuel loaded.  "What fuel does this trip need?"
         (solver_mission_fuel.py)
- 
-All three share the same initial three setup steps below and differ only in the
-final step. Modes 2 and 3 are inverses of each other and will round trip: the
-fuel that mode 3 solves for a given range is the fuel that makes mode 2 return
-that same range.
+  4. examples/radius_mission.py
+        Fixed fuel   -> solves an out-and-back radius. "How far out and back
+        can it go on this fuel?" (solver_mission_range.py:solve_radius_iterate)
+
+Modes 1-3 share the same initial three setup steps below and differ only in
+the final step. Modes 2 and 3 are inverses of each other and will round trip. 
+Mode 4 is a variant of mode 2 that solves two cruise legs at once instead of 
+one. See examples/radius_mission.py for its own walkthrough.
  
 THE WORKFLOW (steps 1-3 are identical in all three modes)
 -------------------------------------------------------------------------------
@@ -52,7 +55,8 @@ THE WORKFLOW (steps 1-3 are identical in all three modes)
           speed internally. Pass a bare float instead of a schedule object for 
           a simple constant-Mach climb.
  
-  STEP 3  Build the mission segment list, in flight order. (see segmnets.py)
+  STEP 3  Build the mission segment list, in flight order. (see segments/,
+          starting with segments/base.py for the full catalog)
           Available segments:
             GroundOps(duration_min, throttle_set_pct)
                 Taxi / ground burn. throttle_set_pct interpolates between
@@ -65,14 +69,25 @@ THE WORKFLOW (steps 1-3 are identical in all three modes)
             ConstantAltCruiseSegment(mach, range_nm, altitude_ft, num_steps)
                 Level cruise for a set distance. Integrates over RANGE.
             LoiterSegment(mach, duration_min, altitude_ft, num_steps)
-                Level cruise for a set time. Integrates over TIME. no distance 
+                Level cruise for a set time. Integrates over TIME. no distance
                 credit (intended for resevres).
             AccelDecelSegment(altitude_ft, start_mach, end_mach, num_steps)
                 Level flight speed change at constant altitude. Max thrust if
                 end_mach > start_mach, idle thrust if it is lower.
- 
-          NOTE: Mission segments do not have to be continuous between them. 
-          Setting the start altitude of a segment = -1 will cause ti to 
+            CruiseClimbSegment(mach, range_nm, ps_target_fpm, num_steps)
+                Cruise at a commanded specific excess power (based on MIL-STD-3013
+                cruise-climb), drifting upward over range as fuel burns off.
+            AerialRefuelSegment(mach, altitude_ft, transfer_rate_lb_min, ...)
+                Fuel transfer (onload/offload) at constant altitude and Mach,
+                integrated over time. Used below in this example.
+
+          Every segment above also accepts a trailing leg="outbound"/"inbound"/
+          "neutral" argument used only by radius missions (see MissionLeg in
+          segments/base.py and examples/radius_mission.py); it can be omitted
+          for a normal one-way mission like this one.
+
+          NOTE: Mission segments do not have to be continuous between them.
+          Setting the start altitude of a segment = -1 will cause it to
           inherit the ending altitude of the previus segment.
  
   STEP 4  Run it. THIS is the step that differs between the three modes.

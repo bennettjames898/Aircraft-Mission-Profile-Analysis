@@ -1,4 +1,11 @@
+"""
+AerialRefuelSegment: constant-altitude, constant-Mach fuel transfer
+(onload or offload) integrated over time, coupled with the receiving/
+donating aircraft's own fuel burn.
 
+Argument meanings, accepted values and the error messages this segment can
+raise are documented in the catalog at the top of segments/base.py.
+"""
 
 import unit_conversions as convert
 from aircraft_build import Aircraft
@@ -54,8 +61,8 @@ class AerialRefuelSegment(MissionSegment):
     containing an onload is a NET WEIGHT CHANGE, not the fuel actually
     consumed. The true burn is available two ways: the 'Fuel_burn_lb' column
     in this segment's history is always the genuine burn, positive, and
-    'self.fuel_burned_only_lb' holds the segment total after run(). Both
-    exclude transferred fuel.
+    'SegmentResult.AR_AC_flight_burn_kg' holds the segment total (in kg) after
+    run(). Both exclude transferred fuel.
 
     ASSUMPTIONS AND SIMPLIFICATIONS
     -------------------------------------------------------------------------

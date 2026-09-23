@@ -44,7 +44,7 @@ def flight_path_angle_residual(gamma_rad, aircraft, weight_kg, altitude_m, mach,
     schedule calls for TAS to change with altitude (e.g. constant CAS climbs), 
     some of the available excess thrust goes into accelerating the aircraft 
     rather than climbing, setting ka > 1. See 'speed_schedule.py' dtas_dh and
-    'segments.py' CommonGammaSegment for where ka is computed.
+    'segments/common_gamma.py' CommonGammaSegment for where ka is computed.
     """
     
     # Atmosphere conditions
