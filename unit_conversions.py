@@ -73,12 +73,12 @@ def fts_to_ms(fts: float) -> float:
 ###############################################################################
 import atmosphere
 # MACH to True airspeed (m/s)
-def mach_to_tas(mach: float, altitude_m: float, DISAC: float = 0.0) -> float:
+def mach_to_tas(mach: float, altitude_m: float, DISAC: float) -> float:
     a = atmosphere.isa_conditions(altitude_m, DISAC)["speed_of_sound_m_s"]
     return mach * a
 
 # True airspeed (m/s) to MACH
-def tas_to_mach(tas_m_s: float, altitude_m: float, DISAC: float = 0.0) -> float:
+def tas_to_mach(tas_m_s: float, altitude_m: float, DISAC: float) -> float:
     a = atmosphere.isa_conditions(altitude_m, DISAC)["speed_of_sound_m_s"]
     return tas_m_s / a
 

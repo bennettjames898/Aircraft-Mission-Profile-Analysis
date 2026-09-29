@@ -44,7 +44,7 @@ class Aircraft:
 
     # CL required for level, unaccelerated flight (L = W)
     def required_cl(self, weight_kg: float, altitude_m: float, mach: float) -> float:
-        tas = convert.mach_to_tas(mach, altitude_m)
+        tas = convert.mach_to_tas(mach, altitude_m, self.DISAC)
         rho = isa_conditions(altitude_m, self.DISAC)["density_kg_m3"]
         q = 0.5 * rho * tas ** 2
         weight = self.weight_n(weight_kg)
@@ -54,7 +54,7 @@ class Aircraft:
     def drag_n(self, weight_kg: float, altitude_m: float, mach: float) -> float:
         cl = self.required_cl(weight_kg, altitude_m, mach)
         cd = self.aero_model.get_cd(cl, mach)
-        tas = convert.mach_to_tas(mach, altitude_m)
+        tas = convert.mach_to_tas(mach, altitude_m, self.DISAC)
         rho = isa_conditions(altitude_m, self.DISAC)["density_kg_m3"]
         q = 0.5 * rho * tas ** 2
         return cd * q * self.wing_area_m2

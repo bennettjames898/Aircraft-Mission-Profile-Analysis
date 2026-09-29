@@ -47,7 +47,7 @@ class ConstantAltCruiseSegment(MissionSegment):
 
     # dW/dx (kg fuel per meter of range) at an instantaneous weight.
     def _dW_dx(self, aircraft: Aircraft, weight_kg: float) -> float:
-        tas = convert.mach_to_tas(self.mach, self.altitude_m)
+        tas = convert.mach_to_tas(self.mach, self.altitude_m, aircraft.DISAC)
         fuel_flow_kg_s = aircraft.fuel_flow_kg_s(weight_kg, self.altitude_m, self.mach)
         # dW/dt = -fuel_flow ; dt/dx = 1/V  =>  dW/dx = -fuel_flow / V
         return -fuel_flow_kg_s / tas

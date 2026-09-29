@@ -117,7 +117,7 @@ class MissionResult:
         lines = [f"\n{'Mission summary':^112}"]
         lines.append("." * 112)
         lines.append(
-            f"{'Segment Name':<12}{'Time (min)':>16}{'Dist (nm)':>16}{'Fuel (lb)':>20}{'Gross Wt. (lb)':>16}"
+            f"{'Segment Name':<12}{'Time (min)':>16}{'Dist (nm)':>16}{'Fuel Used (lb)':>20}{'Gross Wt. (lb)':>16}"
             f"{'Altitude (ft)':>16}{'Mach Number':>16}"
         )
         lines.append(
@@ -133,8 +133,6 @@ class MissionResult:
             runTime += seg.time_s/60
             runDist += seg.distance_nm
             runFuel -= convert.kg_to_lb(seg.fuel_burned_kg)
-            # if seg.segment_name == 'air_refuel':
-            #     runFuel += seg.history-[-1]['Fuel_transfer_total']
             lines.append(
                 f"{seg.segment_name:<12}" # segment name
                 f"{seg.time_s/60:>8.1f}{runTime:>8.1f}" # Time
@@ -145,12 +143,11 @@ class MissionResult:
                 f"{seg.history[0]['mach']:>8.3f}{seg.history[-1]['mach']:>8.3f}" # Mach
             )
             if seg.segment_name == 'air_refuel':
-                lines[-1] += f"   *** {seg.history[-1]['Fuel_transfer_total']:.1f} lb transfer (+ = onload)"
+                lines[-1] += f"   *** {seg.history[-1]['Fuel_transfer_total']:.1f} lb transfer (+ is onload)"
         lines.append("-" * 112)
         lines.append(
             f"{'TOTAL':<12}{self.total_time_s/60:>16.1f}{self.total_distance_nm:>16.1f}"
             f"{self.total_fuel_burned_lb:>20.1f}{self.end_weight_lb:>16.1f}"
-            f"{self.missionSuccess[0]}"
         )
         
         # Radius missions only: report what each leg covered so the turn point 

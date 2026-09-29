@@ -74,7 +74,7 @@ def run_case(num_steps: int):
     # Evaluate Breguet at the mean weight
     mean_weight_kg  = 0.5 * (result.start_weight_kg + result.end_weight_kg)
     l_over_d_mid    = aircraft.lift_to_drag(mean_weight_kg, convert.ft_to_m(altitude_ft), mach)
-    tas             = convert.mach_to_tas(mach, convert.ft_to_m(altitude_ft))
+    tas             = convert.mach_to_tas(mach, convert.ft_to_m(altitude_ft), aircraft.DISAC)
     tsfc            = aircraft.propulsion_model.tsfc
     breguet_pred_range_nm = breguet_range_nm(
         tas, tsfc, l_over_d_mid, result.start_weight_kg, result.end_weight_kg
