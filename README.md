@@ -46,16 +46,20 @@ climb_simple = ClimbSegment(start_altitude_ft=0, end_altitude_ft=35000, schedule
 
 ## Architecture
 ```
-aero_model.py           - Aero interface + simple parabolic drag polar implementation
+aero_model/             - Package of aero models (one file per model. See aero_model/base.py
+                          for the full catalog): AeroModelBase interface, SimpleDragPolar 
+                          (parabolic polar + wave-drag rise).
 aircraft_build.py       - Aircraft class: wraps geometry, weights, aero + propulsion models
 atmosphere.py           - ISA atmosphere model (temp, pressure, density, speed of sound)
 solver_mission_range.py - Outer-loop solver for max range given fixed fuel
 solver_mission_fuel.py  - Outer-loop solver for minimum fuel given fixed range
 solver_climb_descent.py - Holds the brentq trim solution used in Climb/Descent
 mission.py              - Mission class: sequences segments, carries weight forward
-propulsion_model.py     - Propulsion interface + simple constant-TSFC turbofan and
-                          constant-PSFC turboprop (advance-ratio efficiency +
-                          tip-Mach compressibility) implementations
+propulsion_model/       - Package of propulsion models (one file per model. See
+                          propulsion_model/base.py for the full catalog): 
+                          PropulsionModelBase interface, SimpleTurbofan
+                          (constant TSFC), SimpleTurboprop (constant PSFC, advance-ratio
+                          efficiency + tip-Mach compressibility).
 segments/               - Package of mission segment classes (one file per segment. See
                           segments/base.py for the full catalog and READ FIRST notes):
                           MissionSegment base class + MissionLeg (radius-mission leg
@@ -74,13 +78,13 @@ tests/                  - Validation tests (Breguet convergence, climb/descent v
 						  speed schedule, accel/decel, etc.)
 ```
 
-**Design principle:** `aero_model.py` and `propulsion_model.py` define
+**Design principle:** the `aero_model/` and `propulsion_model/` packages define
 abstract interfaces (`AeroModelBase`, `PropulsionModelBase`) for models of 
 any type. The current implementation is capable of presenting theoretical 
 aerodynamic calculations using the textbook (Anderson) equations. The 
 propulsion model can provide conceptual design approximations (Mattingly). 
-Increasing aero/prop model fidelity means only to implement new subclasses into 
-`aero_model.py` and `propulsion_model.py` to handle specific datasets (DATCOM 
+Increasing aero/prop model fidelity means only to add new subclasses (one file 
+each) to `aero_model/` and `propulsion_model/` to handle specific datasets (DATCOM 
 build-up, engine thrust tables, etc.). Everything downstream (`Aircraft`, the 
 `segments/` package, `Mission`) calls those interface methods, untangling them 
 from dataset-specific code logic.
@@ -114,7 +118,7 @@ from dataset-specific code logic.
   thrust when decelerating.
 - **Coupled weight/fuel-burn integration**: RK4 on
   `dW/dx = -fuel_flow / V` for cruise, `dW/dt = -fuel_flow` for loiter
-- **Turboprop propulsion model** (`propulsion_model.py:SimpleTurboprop`): a
+- **Turboprop propulsion model** (`propulsion_model/simple_turboprop.py:SimpleTurboprop`): a
   power-based alternative to the constant-TSFC turbofan. Available thrust is
   the lesser of the momentum-theory static-thrust limit and `eta_prop * P / V`,
   where propeller efficiency combines an advance-ratio (`J = V/(n*D)`) curve
@@ -178,10 +182,12 @@ independently-derivable reference in the corresponding test or
 `__name__ == "__main__"` block of each `.py` file
 
 ## Simplifications & Assumptions
-- Constant TSFC (turbofan) / constant PSFC (turboprop) propulsion models
-  (no altitude/Mach/throttle-based specific fuel consumption variation).
-- Idle thrust is modeled as a fixed fraction of max thrust at the same
-  altitude/Mach.
+- Constant TSFC (`SimpleTurbofan`) / constant PSFC (`SimpleTurboprop`)
+  propulsion models (no altitude/Mach/throttle-based specific fuel
+  consumption variation). `TabulatedTurbofanModel` removes this limitation
+  when an engine deck is available.
+- Idle thrust in the simple models is a fixed fraction of max thrust at the
+  same altitude/Mach.
 - Turboprop propeller efficiency (`SimpleTurboprop`) uses a tunable
   advance-ratio curve fit, and assumes an ideal constant-speed prop. 
   Residual core jet thrust and flat rating are not modeled.

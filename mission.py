@@ -89,16 +89,18 @@ class MissionResult:
         aero_lines = ["\n----------------------------------Aerodynamic Model----------------------------------"]
         aeroIn = self.aircraft.aero_model.inputs
         for key, value in aeroIn.items():
+            if key == "inputs":
+                continue # models using `self.inputs = self.__dict__` contain themselves
             aero_lines.append(f"{key:<20} = {value}")
-        aero_lines = aero_lines[:-1]
         sumOutAero = "\n".join(aero_lines)
             
         # Collect prop input values
         prop_lines = ["\n----------------------------------Propulsion Model-----------------------------------"]
         propIn = self.aircraft.propulsion_model.inputs
         for key, value in propIn.items():
+            if key == "inputs":
+                continue # models using `self.inputs = self.__dict__` contain themselves
             prop_lines.append(f"{key:<20} = {value}")
-        prop_lines = prop_lines[:-1]
         sumOutProp = "\n".join(prop_lines)
         
         # AC & Mass Props values

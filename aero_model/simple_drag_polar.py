@@ -1,39 +1,29 @@
 """
-Simple Aerodynamic model buildup. Future work planned to implement other 
-aerodynamic model types (interpolated CFD table, DATCOM build-up, etc.).
+SimpleDragPolar: textbook parabolic drag polar, CD = CD0 + K*CL^2.
 
-NOTE: Any future implementation (interpolated CFD table, DATCOM build-up, etc.)
-should subclass AeroModelBase and implement the same two methods.
+Argument meanings, accepted values and the error messages this model can
+raise are documented in the catalog at the top of aero_model/base.py.
+
+Run the debug block below from the repository root with:
+    python -m aero_model.simple_drag_polar
 """
 
 import math
-from abc import ABC, abstractmethod
 
-class AeroModelBase(ABC):
-    """Abstract interface all aero models must implement."""
-    name = "AeroModelBase"
-    @abstractmethod
-    def get_cd(self, cl: float, mach: float) -> float:
-        """Return total drag coefficient for given lift coefficient and Mach."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def cl_for_lift(self, lift_n: float, dynamic_pressure_pa: float, area_m2: float) -> float:
-        """Return CL required to produce a given lift force at given q and area."""
-        raise NotImplementedError
+from .base import AeroModelBase
 
 
 class SimpleDragPolar(AeroModelBase):
     """
     Simple parabolic drag polar: CD = CD0 + K * CL^2
 
-    This is a textbook model (Anderson) for early conceptual-level mission 
+    This is a textbook model (Anderson) for early conceptual-level mission
     analysis. It intentionally ignores:
       - Mach-dependent CD0 rise (wave drag) above a critical Mach
       - CL_max / stall limits
       - Compressibility effects on K
 
-    `mach_drag_rise` correction is included as a placeholder so the tool 
+    `mach_drag_rise` correction is included as a placeholder so the tool
     produces qualitatively correct cruise-Mach behavior.
     """
     name = "SimpleDragPolar"
@@ -70,7 +60,7 @@ class SimpleDragPolar(AeroModelBase):
         cd = self.get_cd(cl, mach)
         return cl / cd
 
-#------------------------------ DEBUGGING ------------------------------------- 
+#------------------------------ DEBUGGING -------------------------------------
 if __name__ == "__main__":
     # Sanity check: L/D should peak somewhere reasonable and drag should rise sharply past mach_crit.
     aero = SimpleDragPolar(cd0=0.020, aspect_ratio=9.5, oswald_efficiency=0.80)

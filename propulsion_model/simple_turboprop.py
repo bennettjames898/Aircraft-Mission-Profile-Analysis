@@ -1,93 +1,18 @@
 """
-Propulsion model interface.
+SimpleTurboprop: constant SFC, power producing engine driving a propeller.
+Thrust is derived from shaft power via a propeller efficiency model (advance
+ratio + helical tip-Mach compressibility), with a momentum-theory static
+thrust limit at low speed.
 
-Same philosophy as 'aero_model.py'. The mission code asks for thrust
-available and fuel flow at a flight condition + throttle setting, and
-does not care whether that comes from a real engine deck, a scaled
-manufacturer chart, or one of the conceptual-design approximations
-implemented here.
+Argument meanings, accepted values and the error messages this model can
+raise are documented in the catalog at the top of propulsion_model/base.py.
+The full derivation and known simplifications live in the class docstring.
 
-Two implementations are provided:
-  - SimpleTurbofan: constant-TSFC, thrust-producing engine. Fuel flow
-    tracks thrust directly and is Mach independent.
-  - SimpleTurboprop: constant-PSFC, power-producing engine driving a
-    propeller. Thrust is derived from shaft power via a propeller
-    efficiency model (advance ratio + helical tip-Mach compressibility).
-    See its class docstring for the fullbderivation and known simplifications.
 """
 
 import math
-from abc import ABC, abstractmethod
 import unit_conversions as convert
-
-
-class PropulsionModelBase(ABC):
-    name = "PropulsionModelBase"
-    @abstractmethod
-    def max_thrust(self, altitude_m: float, mach: float) -> float:
-        """Maximum available thrust (N) at altitude/Mach, full throttle."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def idle_thrust(self, altitude_m: float, mach: float) -> float:
-        """Idle (flight-idle) thrust (N) at altitude/Mach, used for descent."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def fuel_flow(self, thrust_n: float, altitude_m: float, mach: float, DISAC: float) -> float:
-        """Fuel mass flow rate (kg/s) for a given thrust setting."""
-        raise NotImplementedError
-
-
-class SimpleTurbofan(PropulsionModelBase):
-    """
-    Simplified turbofan model using:
-      - A altitude/Mach thrust lapse approximation (conceptual-design)
-      - Constant TSFC
-
-    Thrust lapse: T_max(h, M) = T_sea_level * (rho/rho0)^m * f(M)
-    where m ~ 0.7-1.0 for high-bypass turbofans, and f(M) is a mild
-    Mach correction. These are conceptual-design approximations (Mattingly).
-    """
-    name = "SimpleTurbofan"
-    def __init__(
-        self,
-        sea_level_thrust_lbf:   float, # PER ENGINE
-        tsfc_lb_per_lbfhr:      float, # FuelFlow/Thrust [lb/(hr*lbf)]
-        num_engines:            int = 2,
-        lapse_exponent:         float = 0.8,
-        idle_thrust_fraction:   float = 0.05,
-    ):
-        self.modelID                = self.name
-        self.sea_level_thrust_n     = convert.lb_to_kg(sea_level_thrust_lbf)*convert.G0
-        self.tsfc                   = tsfc_lb_per_lbfhr/35310 # converts to kg/(N*s)
-        self.num_engines            = num_engines
-        self.lapse_exponent         = lapse_exponent
-        self.idle_thrust_fraction   = idle_thrust_fraction # % of max thrust for idle approximation
-        self.inputs                 = self.__dict__ # collect input terms for output files
-
-    def max_thrust(self, altitude_m: float, mach: float, DISAC: float) -> float:
-        from atmosphere import isa_conditions, RHO0
-
-        rho = isa_conditions(altitude_m, DISAC)["density_kg_m3"]
-        density_ratio = rho / RHO0
-
-        # Mild Mach correction: thrust drops off slightly with increasing
-        # Mach at constant altitude for a high-bypass turbofan.
-        mach_factor = 1.0 - 0.25 * mach
-
-        thrust_per_engine = (
-            self.sea_level_thrust_n * (density_ratio**self.lapse_exponent) * mach_factor
-        )
-        return self.num_engines * thrust_per_engine
-
-    def idle_thrust(self, altitude_m: float, mach: float, DISAC: float) -> float:
-        return self.idle_thrust_fraction * self.max_thrust(altitude_m, mach, DISAC)
-
-    def fuel_flow(self, thrust_n: float, altitude_m: float, mach: float, DISAC: float) -> float:
-        # Simplification: Constant TSFC model: fuel flow scales linearly with thrust.
-        # (Real engines show TSFC variation with altitude/Mach/throttle)
-        return thrust_n * self.tsfc
+from .base import PropulsionModelBase
 
 class SimpleTurboprop(PropulsionModelBase):
     """
@@ -99,45 +24,44 @@ class SimpleTurboprop(PropulsionModelBase):
         T = eta_prop * P_shaft / V
  
     At constant power, thrust falls as a facotr of 1/V. This relationship is 
-    why turboprops dominate at low speed and lose to turbofans in cruise, 
+    why turboprops excel at low speed and lose to turbofans in cruise, 
     and is the reason this class takes propeller geometry as an input.
  
-    SPEED EFFECTS ON EFFICIENCY (Modeled in this class)
+    SPEED EFFECTS ON EFFICIENCY
     -------------------------------------------------------------------------
     1. THRUST LAPSE WITH SPEED T = eta*P/V [N]
  
     2. ADVANCE RATIO J = V / (n*D)   [n = rev/s, D = diameter]
        The nondimensional ratio of forward distance per revolution to
        propeller diameter. This parameter directly impacts prop efficiency. 
-       Efficiency peaks near a design J and falls away parabolicallyas modeled.
+       Efficiency peaks near a design J and falls away parabolically as modeled.
  
     3. HELICAL TIP MACH NUMBER
            M_tip = sqrt(V^2 + (pi*n*D)^2) / a
        The blade tip sees the vector sum of the aircraft's forward velocity
        and the tip's own rotational velocity, causing the tip to go transonic 
-       long before the aircraft. Once M_tip passes roughly 0.85-0.90, shock
-       losses cut efficiency sharply.
+       before the aircraft. Once M_tip passes roughly 0.85-0.90, shock
+       losses cut efficiency significantly.
  
     STATIC & LOW SPEED THRUST
     -------------------------------------------------------------------------
-    T = eta*P/V is singular at V = 0, so it cannot be used on the ground.
+    T = eta*P/V is singular at V = 0, so it cannot be used for static conditions.
     Actuator disk (momentum) theory gives the static limit instead 
     (NASA Glenn, https://www.grc.nasa.gov/WWW/K-12/airplane/propth.html):
  
         T_static = (2 * rho * A_disk * P^2)^(1/3)
  
-    where A_disk is the propeller swept area and FM is the figure of merit
-    (a real propeller's fraction of the ideal momentum theory result, ~0.7-0.8).
-    The model reports min(T_static, eta*P/V), causing the momentum limit to 
-    drive at low speed and the power/efficiency relation drives in cruise.
+    where A_disk is the propeller swept area. The model reports min(T_static, 
+    eta*P/V), causing the momentum limit to drive at low speed and the 
+    power/efficiency relation drives in cruise.
  
     SIMPLIFICATIONS
     -------------------------------------------------------------------------
       - The eta(J) parabola is a tunable curve fit (using 'advance_ratio_peak' 
         and 'advance_ratio_width'). Its shape is qualitatively accurate to 
         empirical data (single peak & falls off either side).
-      - This model assumes a constant speed propellers, 'prop_rpm' is constant 
-        throughout the mission profile.
+      - This model assumes a constant speed propeller, 'prop_rpm' is constant 
+        throughout the mission.
       - 'num_blades' has no effect on the model unless a blade number 
         efficiency penalty is specified in 'eta_penalty_per_blade'. This term 
         applies a linear efficiency penalty relative to a 4-blade reference, 
@@ -233,8 +157,8 @@ class SimpleTurboprop(PropulsionModelBase):
         eta_J       = max(eta_J, 0)
  
         # --- Compressibility term: cubic loss above tip_mach_crit ---
-        # Same functional form as SimpleDragPolar's wave drag rise, for
-        # consistency of convention across the models.
+        # Same form as SimpleDragPolar's wave drag rise, for consistency 
+        # of convention across the models.
         M_tip       = self.helical_tip_mach(altitude_m, mach, DISAC)
         eta_comp    = 1
         if M_tip > self.tip_mach_crit:
@@ -243,9 +167,7 @@ class SimpleTurboprop(PropulsionModelBase):
  
         # --- Blade count efficiency factor: OFF unless specified ---
         # eta_penalty_per_blade is a calibration input, defaulting to 0, 
-        # so num_blades has no effect on efficiency unless a value is 
-        # provided. See the class docstring for why a scalar cannot represent 
-        # blade count properly.
+        # so num_blades has no effect on efficiency unless a value is provided.
         blade_factor = 1-(self.eta_penalty_per_blade*(self.num_blades-4))
  
         eta = self.eta_prop_max * eta_J * eta_comp * blade_factor
@@ -345,33 +267,20 @@ class SimpleTurboprop(PropulsionModelBase):
         P_from_static   = thrust_n**1.5 / math.sqrt(2 * rho * A_total)
  
         # Invert the propeller branch:  P = T*V / eta
-        tas = convert.mach_to_tas(mach, altitude_m, 0)
+        tas = convert.mach_to_tas(mach, altitude_m, DISAC)
         if tas <= 1e-6:
             P_required = P_from_static
         else:
-            eta         = self.prop_efficiency(altitude_m, mach, 0)
+            eta         = self.prop_efficiency(altitude_m, mach, DISAC)
             P_from_prop = thrust_n * tas / eta
             P_required  = max(P_from_static, P_from_prop)
  
         return self.psfc * P_required
- 
+
  
 #------------------------------ DEBUGGING ------------------------------------- 
 if __name__ == "__main__":
     DISAF = 0 # Delta standard conditions in degF
- 
-    engine = SimpleTurbofan(
-        sea_level_thrust_lbf = 27000,  # ~27,000 lbf per engine, x2
-        tsfc_lb_per_lbfhr    = 0.62,   # ~0.62 lb/lbf/hr, typical turbofan cruise TSFC
-        num_engines          = 2,
-    )
-    
-    print(f"{'Alt (ft)':>10} {'Mach':>6} {'Max Thrust (N)':>16} {'Fuel Flow (kg/s)':>18}")
-    for alt_ft, mach in [(0, 0.3), (35000, 0.78), (39000, 0.78)]:
-        alt_m   = convert.ft_to_m(alt_ft)
-        t_max   = engine.max_thrust(alt_m, mach, convert.DISAF_to_C(DISAF)) # N
-        WF      = engine.fuel_flow(t_max, alt_m, mach, convert.DISAF_to_C(DISAF)) # kg/s
-        print(f"{alt_ft:>10} {mach:>6.2f} {t_max:>16.1f} {WF:>18.4f}")
  
     # --- Turboprop: ATR/Dash-8 class, ~2750 shp per engine ---
     # Checks to look for in the sweep below:
@@ -390,9 +299,11 @@ if __name__ == "__main__":
         num_engines         = 2,
     )
  
+    DISAC       = convert.DISAF_to_C(DISAF)
+    T_static    = prop.max_thrust(0, 0, DISAC)
     print(f"\n{prop.name}: static thrust at SL = "
-          f"{convert.kg_to_lb(prop.max_thrust(0, 0)/convert.G0):.0f} lbf, "
-          f"WF = {convert.kg_to_lb(prop.fuel_flow(prop.max_thrust(0,0), 0, 0, 0))*3600:.0f} lb/hr")
+          f"{convert.kg_to_lb(T_static/convert.G0):.0f} lbf, "
+          f"WF = {convert.kg_to_lb(prop.fuel_flow(T_static, 0, 0, DISAC))*3600:.0f} lb/hr")
     print(f"{'Alt (ft)':>10} {'Mach':>6} {'J':>7} {'M_tip':>8} {'eta_prop':>10} "
           f"{'Max Thrust (N)':>16} {'Fuel Flow (kg/s)':>18}")
     for alt_ft, mach in [(0, 0.20), (10000, 0.35), (20000, 0.45), (20000, 0.55), (25000, 0.65)]:
