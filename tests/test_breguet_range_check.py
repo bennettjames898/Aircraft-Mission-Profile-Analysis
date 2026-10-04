@@ -54,7 +54,7 @@ def breguet_range_nm(tas_m_s, tsfc_kg_per_n_per_s, l_over_d, w_start_kg, w_end_k
 
 def run_case(num_steps: int):
     """
-    Run 'FixedCruiseSegment' for a fixed range, then check that a Breguet
+    Run 'ConstantAltCruiseSegment' for a fixed range, then check that a Breguet
     calculation using the (nearly constant) L/D at the midpoint weight
     predicts a very similar range for the same fuel burn.
     """

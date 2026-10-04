@@ -4,7 +4,7 @@ This exercises every segment type currently implemented and
 is the profile to run when checking that the whole mission chain behaves properly.
 
 ===============================================================================
-QUICK START 1 of 3 -- RUN A FIXED MISSION (no mission-level iteration)
+QUICK START 1 of 4 -- RUN A FIXED MISSION (no mission-level iteration)
 ===============================================================================
 Flies a fully specified mission exactly as written and reports how much fuel 
 remains at conclusion. Every segment length is an input, nothing is iteratively 

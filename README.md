@@ -184,8 +184,9 @@ independently-derivable reference in the corresponding test or
 ## Simplifications & Assumptions
 - Constant TSFC (`SimpleTurbofan`) / constant PSFC (`SimpleTurboprop`)
   propulsion models (no altitude/Mach/throttle-based specific fuel
-  consumption variation). `TabulatedTurbofanModel` removes this limitation
-  when an engine deck is available.
+  consumption variation). A tabulated, engine-deck-based `PropulsionModelBase`
+  subclass would remove this limitation when engine deck data is available
+  (see Future Work).
 - Idle thrust in the simple models is a fixed fraction of max thrust at the
   same altitude/Mach.
 - Turboprop propeller efficiency (`SimpleTurboprop`) uses a tunable

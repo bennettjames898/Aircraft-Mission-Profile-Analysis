@@ -43,9 +43,15 @@ same ground distance. Segments are tagged with the 'leg' input
                                          tagged leg="outbound"/"inbound"
         OutboundIndexToPlaceIteration -- insert() location for the outbound cruise
         InboundIndexToPlaceIteration --- insert() location for the inbound cruise
-        cruise_altitude_ft ------------- Cruise altitude for the iterated segments
-        cruise_mach -------------------- Cruise Mach for the iterated segments
-        ...
+        outbound_cruise_altitude_ft ---- Cruise altitude for the outbound iterated segment
+        outbound_cruise_mach ----------- Cruise Mach for the outbound iterated segment
+        inbound_cruise_altitude_ft ----- Cruise altitude for the inbound iterated segment
+        inbound_cruise_mach ------------ Cruise Mach for the inbound iterated segment
+        cruise_num_steps --------------- # of analysis steps over each iterated segment
+        radius_bracket_nm -------------- Initial radius solution bracket
+        converge_tol --------------------Tolerance on radius output to consider success
+        leg_tol_nm ----------------------How closely the two legs must match the
+                                         radius before the inner balance converges
         ) -> MaxRadiusIteratedResult
 
 Two things are being solved at once, so there are two nested loops:
@@ -111,7 +117,7 @@ def solve_cruise_range(
         Builds the COMPLETE mission segment list for a test cruise range, e.g.:
 
             def build(range_nm):
-                return [climb, CruiseSegment(..., range_nm=range_nm), descent]
+                return [climb, ConstantAltCruiseSegment(..., range_nm=range_nm), descent]
 
         Only one segment entry can scale with the range_nm argument passed in.
     range_bracket_nm : tuple

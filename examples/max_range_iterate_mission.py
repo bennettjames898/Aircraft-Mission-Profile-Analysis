@@ -1,11 +1,11 @@
 """
-Demonstrates mission_sizing.py: solves for the maximum range this
+Demonstrates solver_mission_range.py: solves for the maximum range this
 aircraft can fly on a given fuel load, with a fixed climb, descent, and
 diversion reserve, converging until the mission lands at exactly
 zero-fuel weight.
 
 ===============================================================================
-QUICK START 2 of 3 -- SOLVE MAXIMUM RANGE (fixed fuel -> solves cruise range)
+QUICK START 2 of 4 -- SOLVE MAXIMUM RANGE (fixed fuel -> solves cruise range)
 ===============================================================================
 Answers "how far can this airplane fly on the fuel it is carrying?"
  

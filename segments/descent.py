@@ -15,8 +15,9 @@ class DescentSegment(CommonGammaSegment):
     Descent at idle thrust from a start to an end altitude following a speed 
     schedule exactly as ClimbSegment does.
 
-    Idle thrust comes from the 'propulsion_model.py' idle_thrust() method,
-    which is currently a simple fraction of max thrust.
+    Idle thrust comes from the propulsion model's idle_thrust() method
+    (see propulsion_model/base.py), which is currently a simple fraction of
+    max thrust.
     """
     name = "descent"
     def _thrust_n(self, aircraft: Aircraft, altitude_m: float, mach: float) -> float:

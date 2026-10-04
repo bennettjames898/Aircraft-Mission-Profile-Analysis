@@ -3,7 +3,7 @@ Demonstrates solver_mission_fuel.py: solves for the minimum fuel required for
 an aircraft to fly the provided mission and end at ZFW + reserves.
 
 ===============================================================================
-QUICK START 3 of 3 -- SOLVE MINIMUM FUEL (fixed range -> solves fuel loaded)
+QUICK START 3 of 4 -- SOLVE MINIMUM FUEL (fixed range -> solves fuel loaded)
 ===============================================================================
 Answers "how much fuel does this mission require?"
  

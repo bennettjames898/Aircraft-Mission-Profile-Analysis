@@ -7,7 +7,7 @@ pinned at zero and the along-flight-path force balance is fully
 explicit (T - D = m*dV/dt). These tests check basic physical sanity
 (Mach moves the right direction, fuel burns, weight decreases), the
 asymmetry between max-thrust acceleration and idle-thrust deceleration,
-and that AccelDecelError fires in both directions when the requested
+and that a ValueError fires in both directions when the requested
 speed change genuinely isn't achievable at the commanded thrust.
 """
  

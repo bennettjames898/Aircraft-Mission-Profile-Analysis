@@ -13,10 +13,11 @@ FILE STRUCTURE
 
 Importing:
 
-    `from propulsion_model import SimpleTurbofan, TabulatedTurbofanModel`
+    `from propulsion_model import SimpleTurbofan, SimpleTurboprop`
 
-See "ADDING A NEW PROPULSION MODEL" at the bottom of propulsion_model/base.py 
-for expansion instructions.
+A tabulated, engine-deck-based model is planned (see the README's Future
+Work). See "ADDING A NEW PROPULSION MODEL" at the bottom of 
+propulsion_model/base.py for expansion instructions.
 """
 
 from .base import PropulsionModelBase

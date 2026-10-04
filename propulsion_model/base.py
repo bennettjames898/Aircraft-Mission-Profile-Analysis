@@ -1,7 +1,7 @@
 """
 Propulsion model interface.
 
-Same philosophy as 'aero_model.py'. The mission code asks for thrust
+Same philosophy as the aero_model package. The mission code asks for thrust
 available and fuel flow at a flight condition + throttle setting, and
 does not care whether that comes from a real engine deck, a scaled
 manufacturer chart, or one of the conceptual-design approximations
